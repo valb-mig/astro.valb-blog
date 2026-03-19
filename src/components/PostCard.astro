@@ -1,0 +1,71 @@
+---
+import Tag from './Tag.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  date: Date;
+  slug: string;
+  tags?: string[];
+  project?: string;
+  newsletter?: boolean;
+  delay?: number;
+}
+
+const {
+  title,
+  description,
+  date,
+  slug,
+  tags = [],
+  project,
+  newsletter = false,
+  delay = 0,
+} = Astro.props;
+
+const dateStr = new Date(date).toLocaleDateString('pt-BR', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+---
+
+<article
+  class="fade-in"
+  style={`
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 1.25rem 1.5rem;
+    transition: border-color 0.2s;
+    transition-delay: ${delay}ms;
+  `}
+  onmouseover="this.style.borderColor='var(--accent)';"
+  onmouseout="this.style.borderColor='var(--border)';"
+>
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem;">
+    <a href={`/blog/${slug}`} style="flex: 1;">
+      <h3 style="font-size: 0.9375rem; font-weight: 600; color: var(--text); transition: color 0.2s; line-height: 1.4;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--text)';">
+        {title}
+      </h3>
+    </a>
+    <span style="font-size: 0.7rem; color: var(--subtle); white-space: nowrap; padding-top: 0.2rem;">{dateStr}</span>
+  </div>
+
+  <p style="font-size: 0.8125rem; color: var(--muted); line-height: 1.6; margin-bottom: 0.875rem;">
+    {description}
+  </p>
+
+  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+    {tags.map((tag) => <Tag tag={tag} href={`/blog?tag=${tag}`} />)}
+    {project && (
+      <a
+        href={`/projects/${project}`}
+        style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--subtle); border: 1px solid var(--border); padding: 0.15em 0.55em; border-radius: 2px; transition: color 0.2s, border-color 0.2s;"
+        onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)';"
+        onmouseout="this.style.color='var(--subtle)';this.style.borderColor='var(--border)';"
+      >
+        ⬡ {project}
+      </a>
+    )}
+  </div>
+</article>

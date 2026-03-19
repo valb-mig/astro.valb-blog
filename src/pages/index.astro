@@ -1,0 +1,84 @@
+---
+import Base from '../layouts/Base.astro';
+import PostCard from '../components/PostCard.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { getCollection } from 'astro:content';
+
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const allProjects = await getCollection('projects', ({ data }) => !data.draft);
+
+const latestPosts = allPosts
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .slice(0, 3);
+
+const activeProjects = allProjects
+  .filter((p) => p.data.status === 'active')
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .slice(0, 3);
+
+// Count posts per project
+const postCountMap: Record<string, number> = {};
+allPosts.forEach((post) => {
+  if (post.data.project) {
+    postCountMap[post.data.project] = (postCountMap[post.data.project] ?? 0) + 1;
+  }
+});
+---
+
+<Base title="~/blog">
+  <div style="max-width: 72rem; margin: 0 auto; padding: 0 1.5rem;">
+    <!-- Latest Posts -->
+    <section style="padding: 6rem 0 5rem;">
+      <div style="margin-bottom: 1.5rem;">
+        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ ls -t blog/</p>
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text);"># posts recentes</h2>
+          <a href="/blog" style="font-size: 0.75rem; color: var(--subtle); transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">ver todos →</a>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {latestPosts.map((post, i) => (
+          <PostCard
+            title={post.data.title}
+            description={post.data.description}
+            date={post.data.date}
+            slug={post.slug}
+            tags={post.data.tags}
+            project={post.data.project}
+            newsletter={post.data.newsletter}
+            delay={i * 80}
+          />
+        ))}
+      </div>
+    </section>
+
+    <!-- Active Projects -->
+    {activeProjects.length > 0 && (
+      <section style="padding: 0 0 6rem;">
+        <div style="margin-bottom: 1.5rem;">
+          <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ ls projects/ --filter=active</p>
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text);"># projetos ativos</h2>
+            <a href="/projects" style="font-size: 0.75rem; color: var(--subtle); transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">ver todos →</a>
+          </div>
+        </div>
+        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+          {activeProjects.map((project, i) => (
+            <ProjectCard
+              title={project.data.title}
+              description={project.data.description}
+              date={project.data.date}
+              slug={project.slug}
+              tags={project.data.tags}
+              status={project.data.status}
+              repo={project.data.repo}
+              url={project.data.url}
+              postCount={postCountMap[project.slug] ?? 0}
+              delay={i * 80}
+            />
+          ))}
+        </div>
+      </section>
+    )}
+  </div>
+</Base>

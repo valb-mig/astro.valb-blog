@@ -1,0 +1,44 @@
+---
+interface Props {
+  tag: string;
+  href?: string;
+  active?: boolean;
+}
+const { tag, href, active = false } = Astro.props;
+
+const isNewsletter = tag === 'newsletter';
+---
+
+{href ? (
+  <a
+    href={href}
+    style={`
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid ${active ? 'var(--accent)' : isNewsletter ? 'var(--accent)' : 'var(--border)'};
+      color: ${active || isNewsletter ? 'var(--accent)' : 'var(--muted)'};
+      font-size: 0.7rem;
+      font-family: inherit;
+      padding: 0.15em 0.55em;
+      border-radius: 2px;
+      transition: border-color 0.2s, color 0.2s;
+      cursor: pointer;
+    `}
+  >
+    #{tag}
+  </a>
+) : (
+  <span
+    style={`
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid ${isNewsletter ? 'var(--accent)' : 'var(--border)'};
+      color: ${isNewsletter ? 'var(--accent)' : 'var(--muted)'};
+      font-size: 0.7rem;
+      padding: 0.15em 0.55em;
+      border-radius: 2px;
+    `}
+  >
+    #{tag}
+  </span>
+)}

@@ -1,0 +1,23 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer style="border-top: 1px solid var(--border); margin-top: 6rem;">
+  <div
+    style="
+      max-width: 72rem; margin: 0 auto;
+      padding: 2rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 1rem;
+      font-size: 0.75rem; color: var(--subtle);
+    "
+  >
+    <span>
+      <span style="color: var(--accent);">❯</span> {year} — made by <a href="https://github.com/voce" target="_blank" rel="noopener" style="color: var(--subtle)">valb-mig</a>
+    </span>
+    <div style="display: flex; gap: 1.5rem;">
+      <a href="/rss.xml" style="transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">rss</a>
+      <a href="https://github.com" target="_blank" rel="noopener" style="transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">github</a>
+    </div>
+  </div>
+</footer>

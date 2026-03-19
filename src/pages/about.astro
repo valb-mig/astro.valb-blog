@@ -1,0 +1,42 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="about — ~/blog">
+  <div style="max-width: 72rem; margin: 0 auto; padding: 6rem 1.5rem 8rem;">
+
+    <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 1rem;">❯ cat about.md</p>
+
+    <h1 style="font-size: 2rem; font-weight: 700; color: var(--text); margin-bottom: 3rem;">
+      # sobre mim
+    </h1>
+
+    <div class="prose fade-in">
+      <p>
+        Olá! Eu sou <strong style="color: var(--text);">Ivalber Souza</strong> — Backend Developer.
+        Sou um jovem programador e muito curioso, tenho muito interesse na área de arquitetura, 
+        sempre buscando o meu melhor para aprender e desenvolver novas tecnologias.
+
+        Sei falar inglês e português, mas esse blog vai ser focado em inglês. (por enquanto)
+      </p>
+
+      <h2>o que você encontra aqui</h2>
+      <p>
+        Posts técnicos, reflexões, atualizações de projetos. Conteúdo sem categoria rígida,
+        mas sempre com a intenção de ser útil — pra mim no futuro e, quem sabe, pra você.
+      </p>
+
+      <h2>contato</h2>
+      <p>
+        Me encontra no <a href="https://github.com/valb-mig" target="_blank" rel="noopener">GitHub</a> ou
+        manda um email: <a href="mailto:valb.mig@gmail.com">valb.mig@gmail.com</a>
+      </p>
+    </div>
+  </div>
+</Base>
+
+<script>
+  document.querySelectorAll('.fade-in').forEach((el) => {
+    setTimeout(() => el.classList.add('visible'), 100);
+  });
+</script>

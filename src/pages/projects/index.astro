@@ -1,0 +1,106 @@
+---
+import Base from '../../layouts/Base.astro';
+import ProjectCard from '../../components/ProjectCard.astro';
+import { getCollection } from 'astro:content';
+
+const allProjects = await getCollection('projects', ({ data }) => !data.draft);
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+
+// Post count per project
+const postCountMap: Record<string, number> = {};
+allPosts.forEach((post) => {
+  if (post.data.project) {
+    postCountMap[post.data.project] = (postCountMap[post.data.project] ?? 0) + 1;
+  }
+});
+
+const projects = allProjects.sort((a, b) => {
+  const order = { active: 0, completed: 1, archived: 2 };
+  if (order[a.data.status] !== order[b.data.status]) {
+    return order[a.data.status] - order[b.data.status];
+  }
+  return b.data.date.valueOf() - a.data.date.valueOf();
+});
+
+const byStatus = {
+  active: projects.filter((p) => p.data.status === 'active'),
+  completed: projects.filter((p) => p.data.status === 'completed'),
+  archived: projects.filter((p) => p.data.status === 'archived'),
+};
+---
+
+<Base title="projects — ~/blog">
+  <div style="max-width: 72rem; margin: 0 auto; padding: 5rem 1.5rem 8rem;">
+
+    <div style="margin-bottom: 3rem;">
+      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.5rem;">❯ ls projects/</p>
+      <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text);"># projects</h1>
+    </div>
+
+    {byStatus.active.length > 0 && (
+      <section style="margin-bottom: 3rem;">
+        <p style="font-size: 0.75rem; color: var(--accent); margin-bottom: 1rem;">— active</p>
+        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+          {byStatus.active.map((p, i) => (
+            <ProjectCard
+              title={p.data.title}
+              description={p.data.description}
+              date={p.data.date}
+              slug={p.slug}
+              tags={p.data.tags}
+              status={p.data.status}
+              repo={p.data.repo}
+              url={p.data.url}
+              postCount={postCountMap[p.slug] ?? 0}
+              delay={i * 80}
+            />
+          ))}
+        </div>
+      </section>
+    )}
+
+    {byStatus.completed.length > 0 && (
+      <section style="margin-bottom: 3rem;">
+        <p style="font-size: 0.75rem; color: var(--muted); margin-bottom: 1rem;">— completed</p>
+        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+          {byStatus.completed.map((p, i) => (
+            <ProjectCard
+              title={p.data.title}
+              description={p.data.description}
+              date={p.data.date}
+              slug={p.slug}
+              tags={p.data.tags}
+              status={p.data.status}
+              repo={p.data.repo}
+              url={p.data.url}
+              postCount={postCountMap[p.slug] ?? 0}
+              delay={i * 80}
+            />
+          ))}
+        </div>
+      </section>
+    )}
+
+    {byStatus.archived.length > 0 && (
+      <section>
+        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 1rem;">— archived</p>
+        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+          {byStatus.archived.map((p, i) => (
+            <ProjectCard
+              title={p.data.title}
+              description={p.data.description}
+              date={p.data.date}
+              slug={p.slug}
+              tags={p.data.tags}
+              status={p.data.status}
+              repo={p.data.repo}
+              url={p.data.url}
+              postCount={postCountMap[p.slug] ?? 0}
+              delay={i * 80}
+            />
+          ))}
+        </div>
+      </section>
+    )}
+  </div>
+</Base>
