@@ -2,7 +2,7 @@
 title: "Construindo o design system do blog"
 description: "Como montei a identidade visual terminal-aesthetic e o que aprendi no processo."
 date: 2024-03-15
-tags: ["css", "design", "dev"]
+tags: ["css", "design"]
 project: "blog-pessoal"
 newsletter: false
 ---
