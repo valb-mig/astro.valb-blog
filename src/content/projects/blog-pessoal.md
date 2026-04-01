@@ -1,11 +1,11 @@
 ---
 title: "Blog Pessoal"
 description: "O próprio blog — construído com Astro."
-date: 2024-03-01
+date: 2026-03-20
 tags: ["astro", "typescript", "css", "markdown"]
 status: "archived"
 repo: "https://github.com/valb-mig/astro.valb-blog"
-url: "https://google.com"
+url: "https://github.com/valb-mig/astro.valb-blog"
 ---
 
 ## Por que o projeto?
