@@ -1,19 +1,104 @@
 ---
-import { getCollection, render } from 'astro:content';
-import Post from '../../layouts/Post.astro';
+import Base from '../../layouts/Base.astro';
+import Tag from '../../components/Tag.astro';
+import { db } from '../../lib/db';
+import type { Post, Project } from '../../lib/db';
+import { marked } from 'marked';
 
-export async function getStaticPaths() {
-  const posts = await getCollection('blog', ({ data }) => !data.draft);
-  return posts.map((post) => ({
-    params: { slug: post.slug },
-    props: { post },
-  }));
+const { slug } = Astro.params;
+
+const { data: post, error } = await db
+  .from('posts')
+  .select('*')
+  .eq('slug', slug!)
+  .eq('draft', false)
+  .single();
+
+if (error || !post) return Astro.redirect('/blog');
+
+const p = post as Post;
+
+const contentHtml = await marked.parse(p.content);
+
+const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+let projectTitle: string | null = null;
+if (p.project) {
+  const { data: proj } = await db
+    .from('projects')
+    .select('title')
+    .eq('slug', p.project)
+    .single();
+  projectTitle = proj?.title ?? null;
 }
-
-const { post } = Astro.props;
-const { Content } = await render(post);
 ---
 
-<Post frontmatter={post.data}>
-  <Content />
-</Post>
+<Base title={p.title} description={p.description} og={{ type: 'article' }}>
+  <article style="max-width: 72rem; margin: 0 auto; padding: 6rem 1.5rem 8rem;">
+
+    <!-- Breadcrumb -->
+    <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 2rem;">
+      <a href="/" style="color: var(--accent);">~</a>
+      <span> / </span>
+      <a href="/blog" style="color: var(--muted);">blog</a>
+      <span> / </span>
+      <span style="color: var(--muted);">{p.slug}</span>
+    </p>
+
+    <!-- Header -->
+    <header style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 2rem;">
+      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.75rem;">
+        ❯ cat {p.slug}.md
+      </p>
+      <h1 style="font-size: 2rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; line-height: 1.3;">
+        # {p.title}
+      </h1>
+      <p style="color: var(--muted); margin-bottom: 1.25rem;">{p.description}</p>
+
+      <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; font-size: 0.75rem; color: var(--subtle);">
+        <span>{dateStr}</span>
+        <span>{p.reading_time} min de leitura</span>
+        {p.newsletter && (
+          <span style="color: var(--accent); border: 1px solid var(--accent); padding: 0.1em 0.5em; border-radius: 2px;">
+            #newsletter
+          </span>
+        )}
+        {p.project && projectTitle && (
+          <a
+            href={`/projects/${p.project}`}
+            style="display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); border: 1px solid var(--border); padding: 0.15em 0.6em; border-radius: 2px; transition: border-color 0.2s, color 0.2s;"
+            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
+            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';"
+          >
+            ⬡ {projectTitle}
+          </a>
+        )}
+      </div>
+
+      {(p.tags ?? []).length > 0 && (
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
+          {(p.tags ?? []).map((tag: string) => <Tag tag={tag} href={`/blog?tag=${tag}`} />)}
+        </div>
+      )}
+    </header>
+
+    <!-- Content -->
+    <div class="prose" set:html={contentHtml} />
+
+    <!-- Back link -->
+    <div style="margin-top: 4rem; border-top: 1px solid var(--border); padding-top: 2rem;">
+      <a
+        href="/blog"
+        style="font-size: 0.875rem; color: var(--muted); transition: color 0.2s;"
+        onmouseover="this.style.color='var(--accent)';"
+        onmouseout="this.style.color='var(--muted)';"
+      >
+        ← back to blog
+      </a>
+    </div>
+  </article>
+</Base>

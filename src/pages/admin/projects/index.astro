@@ -1,0 +1,103 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import { db } from '../../../lib/db';
+
+const { data: projects } = await db
+  .from('projects')
+  .select('id,slug,title,date,draft,status')
+  .order('date', { ascending: false });
+---
+
+<Admin title="Projects">
+  <div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
+      <div>
+        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ ls projects/</p>
+        <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text);"># projects</h1>
+      </div>
+      <a
+        href="/admin/projects/new"
+        style="font-family: inherit; font-size: 0.8125rem; font-weight: 600; background: var(--accent); color: var(--bg); padding: 0.5rem 1rem; text-decoration: none;"
+        onmouseover="this.style.opacity='0.85'"
+        onmouseout="this.style.opacity='1'"
+      >
+        + novo projeto
+      </a>
+    </div>
+
+    {!projects?.length ? (
+      <p style="color: var(--subtle); font-size: 0.875rem;">nenhum projeto ainda. <a href="/admin/projects/new" style="color: var(--accent);">criar primeiro →</a></p>
+    ) : (
+      <div style="border: 1px solid var(--border); overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); background: var(--surface);">
+              <th style="text-align: left; padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500;">título</th>
+              <th style="text-align: left; padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500;">status</th>
+              <th style="text-align: left; padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500;">data</th>
+              <th style="padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500; text-align: right;">ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(projects ?? []).map((proj) => (
+              <tr class="proj-row">
+                <td style="padding: 0.875rem 1rem;">
+                  <a href={`/admin/projects/${proj.id}`} class="proj-title-link">{proj.title}</a>
+                  <p style="font-size: 0.7rem; color: var(--subtle); margin-top: 0.2rem;">{proj.slug}</p>
+                </td>
+                <td style="padding: 0.875rem 1rem;">
+                  <span class={`status-badge status-${proj.status}`}>{proj.status}</span>
+                  {proj.draft && <span class="status-badge status-draft" style="margin-left: 0.4rem;">draft</span>}
+                </td>
+                <td style="padding: 0.875rem 1rem; color: var(--muted); font-size: 0.75rem; white-space: nowrap;">
+                  {new Date(proj.date).toLocaleDateString('pt-BR')}
+                </td>
+                <td style="padding: 0.875rem 1rem; text-align: right;">
+                  <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <a href={`/admin/projects/${proj.id}`} class="action-link">editar</a>
+                    <button class="delete-btn" data-id={proj.id} data-title={proj.title}>deletar</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+
+  <script>
+    document.querySelectorAll('.delete-btn').forEach((el) => {
+      const btn = el as HTMLButtonElement;
+      btn.addEventListener('click', async () => {
+        if (!confirm('Deletar "' + btn.dataset.title + '"?')) return;
+        const res = await fetch('/api/projects/' + btn.dataset.id, { method: 'DELETE' });
+        if (res.ok) btn.closest('tr')?.remove();
+        else alert('Erro ao deletar projeto');
+      });
+    });
+  </script>
+</Admin>
+
+<style>
+.proj-row { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+.proj-row:hover { background: var(--surface); }
+
+.proj-title-link { color: var(--text); font-weight: 500; text-decoration: none; transition: color 0.2s; }
+.proj-title-link:hover { color: var(--accent); }
+
+.status-badge { font-size: 0.65rem; padding: 0.15em 0.55em; border-radius: 2px; border: 1px solid; }
+.status-active { color: var(--accent); border-color: var(--accent); }
+.status-completed { color: var(--muted); border-color: var(--muted); }
+.status-archived { color: var(--subtle); border-color: var(--subtle); }
+.status-draft { color: var(--subtle); border-color: var(--subtle); }
+
+.action-link { font-size: 0.75rem; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+.action-link:hover { color: var(--accent); }
+
+.delete-btn {
+  font-family: inherit; font-size: 0.75rem; color: var(--subtle);
+  background: none; border: none; cursor: pointer; transition: color 0.2s;
+}
+.delete-btn:hover { color: #f87171; }
+</style>

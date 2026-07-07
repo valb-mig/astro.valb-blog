@@ -1,0 +1,183 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import MarkdownEditor from '../../../components/MarkdownEditor.astro';
+---
+
+<Admin title="Novo Post">
+  <div>
+    <div style="margin-bottom: 2rem;">
+      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ touch blog/new-post.md</p>
+      <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text);"># novo post</h1>
+    </div>
+
+    <form id="post-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
+      <!-- Row 1: title + slug -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div>
+          <label class="field-label">título *</label>
+          <input id="f-title" type="text" required placeholder="Título do post" class="field-input" />
+        </div>
+        <div>
+          <label class="field-label">slug *</label>
+          <input id="f-slug" type="text" required placeholder="titulo-do-post" class="field-input" />
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label class="field-label">descrição *</label>
+        <input id="f-description" type="text" required placeholder="Resumo curto para cards e SEO" class="field-input" />
+      </div>
+
+      <!-- Row 2: date + tags + project -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+        <div>
+          <label class="field-label">data *</label>
+          <input id="f-date" type="date" required class="field-input" />
+        </div>
+        <div>
+          <label class="field-label">tags (vírgula)</label>
+          <input id="f-tags" type="text" placeholder="css, design, dev" class="field-input" />
+        </div>
+        <div>
+          <label class="field-label">projeto (slug)</label>
+          <input id="f-project" type="text" placeholder="meu-projeto" class="field-input" />
+        </div>
+      </div>
+
+      <!-- Checkboxes -->
+      <div style="display: flex; gap: 2rem;">
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted); cursor: pointer;">
+          <input id="f-draft" type="checkbox" checked style="accent-color: var(--accent);" />
+          draft (não publicado)
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted); cursor: pointer;">
+          <input id="f-newsletter" type="checkbox" style="accent-color: var(--accent);" />
+          marcar para newsletter
+        </label>
+      </div>
+
+      <!-- Editor -->
+      <div>
+        <label class="field-label" style="margin-bottom: 0.5rem;">conteúdo (markdown)</label>
+        <MarkdownEditor name="content" />
+      </div>
+
+      <!-- Actions -->
+      <div style="display: flex; gap: 1rem; align-items: center; padding-top: 0.5rem;">
+        <button
+          type="submit"
+          id="save-btn"
+          style="
+            font-family: inherit; font-size: 0.875rem; font-weight: 600;
+            background: var(--accent); color: var(--bg);
+            border: none; padding: 0.65rem 1.5rem;
+            cursor: pointer; transition: opacity 0.2s;
+          "
+        >
+          ❯ salvar post
+        </button>
+        <a href="/admin/posts" style="font-size: 0.8125rem; color: var(--subtle);">cancelar</a>
+        <p id="save-error" style="font-size: 0.8125rem; color: #f87171; display: none; margin-left: auto;"></p>
+      </div>
+    </form>
+  </div>
+</Admin>
+
+<style>
+.field-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.field-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.55rem 0.75rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.field-input:focus { border-color: var(--accent); }
+
+@media (max-width: 600px) {
+  div[style*="grid-template-columns: 1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+</style>
+
+<script>
+  // Auto-fill today's date
+  const dateInput = document.getElementById('f-date') as HTMLInputElement;
+  dateInput.value = new Date().toISOString().split('T')[0];
+
+  // Auto-generate slug from title
+  const titleInput = document.getElementById('f-title') as HTMLInputElement;
+  const slugInput = document.getElementById('f-slug') as HTMLInputElement;
+  let slugTouched = false;
+
+  slugInput.addEventListener('input', () => { slugTouched = true; });
+  titleInput.addEventListener('input', () => {
+    if (!slugTouched) {
+      slugInput.value = titleInput.value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+    }
+  });
+
+  // Form submit
+  const form = document.getElementById('post-form')!;
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+  const saveError = document.getElementById('save-error')!;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveError.style.display = 'none';
+    saveBtn.disabled = true;
+    saveBtn.textContent = '❯ salvando...';
+
+    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
+    const projectVal = (document.getElementById('f-project') as HTMLInputElement).value.trim();
+
+    const payload = {
+      title: (document.getElementById('f-title') as HTMLInputElement).value,
+      slug: (document.getElementById('f-slug') as HTMLInputElement).value,
+      description: (document.getElementById('f-description') as HTMLInputElement).value,
+      date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
+      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
+      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      newsletter: (document.getElementById('f-newsletter') as HTMLInputElement).checked,
+      project: projectVal || null,
+      content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
+    };
+
+    const res = await fetch('/api/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      window.location.href = '/admin/posts';
+    } else {
+      const { error } = await res.json();
+      saveError.textContent = error ?? 'Erro ao salvar';
+      saveError.style.display = 'block';
+      saveBtn.disabled = false;
+      saveBtn.textContent = '❯ salvar post';
+    }
+  });
+</script>

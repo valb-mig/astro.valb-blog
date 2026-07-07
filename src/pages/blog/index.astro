@@ -1,86 +1,167 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
-import Tag from '../../components/Tag.astro';
-import { getCollection } from 'astro:content';
+import { db } from '../../lib/db';
+import type { Post } from '../../lib/db';
 
-const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const { data: allPosts } = await db
+  .from('posts')
+  .select('id,slug,title,description,date,tags,project,newsletter,reading_time')
+  .eq('draft', false)
+  .order('date', { ascending: false });
 
-// Sort by date desc
-const posts = allPosts.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const posts = (allPosts ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'project'|'newsletter'|'reading_time'>[];
 
-// Collect all tags
-const allTags = [...new Set(posts.flatMap((p) => p.data.tags))].sort();
+const allTags = [...new Set(posts.flatMap((p) => p.tags ?? []))].sort();
 
-// Active tag filter from URL
 const activeTag = Astro.url.searchParams.get('tag');
 const filtered = activeTag
-  ? posts.filter((p) => p.data.tags.includes(activeTag))
+  ? posts.filter((p) => (p.tags ?? []).includes(activeTag))
   : posts;
 ---
 
 <Base title="blog — ~/blog">
-  <div style="max-width: 72rem; margin: 0 auto; padding: 5rem 1.5rem 8rem;">
+  <div class="blog-layout">
 
-    <!-- Header -->
-    <div style="margin-bottom: 3rem;">
-      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.5rem;">
-        ❯ ls -la blog/ | sort -k6 -r
-      </p>
-      <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem;">
-        # blog
-      </h1>
-      <p style="font-size: 0.8125rem; color: var(--subtle);">
-        {posts.length} post{posts.length !== 1 ? 's' : ''}
-        {activeTag && ` → filtrado por #${activeTag}`}
-      </p>
-    </div>
+    <!-- Sidebar: tags -->
+    <aside class="blog-sidebar">
+      <div class="sidebar-inner">
+        <p style="font-size: 0.7rem; color: var(--subtle); margin-bottom: 0.75rem;">❯ ls tags/</p>
+        <nav class="tag-nav">
+          <a href="/blog" class={`sidebar-tag ${!activeTag ? 'active' : ''}`}>all</a>
+          {allTags.map((tag) => (
+            <a
+              href={`/blog?tag=${tag}`}
+              class={`sidebar-tag ${activeTag === tag ? 'active' : ''}`}
+            >
+              #{tag}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </aside>
 
-    <!-- Tag filters -->
-    {allTags.length > 0 && (
-      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2.5rem;">
-        <a
-          href="/blog"
-          style={`
-            display: inline-block;
-            font-size: 0.7rem; font-family: inherit;
-            padding: 0.15em 0.55em;
-            border-radius: 2px;
-            border: 1px solid ${!activeTag ? 'var(--accent)' : 'var(--border)'};
-            color: ${!activeTag ? 'var(--accent)' : 'var(--muted)'};
-            background: var(--surface);
-            transition: border-color 0.2s, color 0.2s;
-          `}
-        >
-          all
-        </a>
+    <!-- Main content -->
+    <main class="blog-main">
+
+      <!-- Header -->
+      <div style="margin-bottom: 2rem;">
+        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.5rem;">
+          ❯ ls -t blog/ {activeTag ? `--tag=${activeTag}` : ''}
+        </p>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+          <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text);"># blog</h1>
+        </div>
+        <p style="font-size: 0.8125rem; color: var(--subtle); margin-top: 0.4rem;">
+          {filtered.length} post{filtered.length !== 1 ? 's' : ''}
+          {activeTag && ` · filtrando #${activeTag}`}
+        </p>
+      </div>
+
+      <!-- Mobile tag row -->
+      <div class="mobile-tags">
+        <a href="/blog" class={`sidebar-tag ${!activeTag ? 'active' : ''}`}>all</a>
         {allTags.map((tag) => (
-          <Tag tag={tag} href={`/blog?tag=${tag}`} active={activeTag === tag} />
+          <a href={`/blog?tag=${tag}`} class={`sidebar-tag ${activeTag === tag ? 'active' : ''}`}>
+            #{tag}
+          </a>
         ))}
       </div>
-    )}
 
-    <!-- Post list -->
-    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-      {filtered.length > 0
-        ? filtered.map((post, i) => (
+      <!-- Posts grid -->
+      {filtered.length > 0 ? (
+        <div class="posts-grid">
+          {filtered.map((post, i) => (
             <PostCard
-              title={post.data.title}
-              description={post.data.description}
-              date={post.data.date}
+              id={post.id}
               slug={post.slug}
-              tags={post.data.tags}
-              project={post.data.project}
-              newsletter={post.data.newsletter}
-              delay={i * 60}
+              title={post.title}
+              description={post.description}
+              date={post.date}
+              tags={post.tags}
+              project={post.project}
+              newsletter={post.newsletter}
+              reading_time={post.reading_time}
+              delay={i * 40}
             />
-          ))
-        : (
-          <p style="color: var(--subtle); font-size: 0.875rem;">
-            nenhum post encontrado para #{activeTag}.
-          </p>
-        )
-      }
-    </div>
+          ))}
+        </div>
+      ) : (
+        <p style="color: var(--subtle); font-size: 0.875rem; margin-top: 2rem;">
+          nenhum post encontrado{activeTag ? ` para #${activeTag}` : ''}.
+        </p>
+      )}
+    </main>
   </div>
 </Base>
+
+<style>
+.blog-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  min-height: calc(100vh - 3.5rem);
+}
+
+.blog-sidebar {
+  border-right: 1px solid var(--border);
+  padding-right: 1.5rem;
+}
+
+.sidebar-inner {
+  position: sticky;
+  top: calc(3.5rem + 2rem);
+  padding-top: 5rem;
+  padding-bottom: 3rem;
+}
+
+.tag-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sidebar-tag {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.3rem 0.5rem;
+  border-radius: 2px;
+  transition: color 0.2s, background 0.2s;
+  border: 1px solid transparent;
+}
+.sidebar-tag:hover { color: var(--text); background: var(--surface); }
+.sidebar-tag.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.blog-main {
+  padding: 5rem 0 8rem 2rem;
+}
+
+.mobile-tags {
+  display: none;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .blog-layout {
+    grid-template-columns: 1fr;
+  }
+  .blog-sidebar { display: none; }
+  .mobile-tags { display: flex; }
+  .blog-main { padding: 2rem 0 6rem; }
+}
+</style>

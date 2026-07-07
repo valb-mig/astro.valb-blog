@@ -1,0 +1,301 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import MarkdownEditor from '../../../components/MarkdownEditor.astro';
+import { db } from '../../../lib/db';
+import type { Post } from '../../../lib/db';
+
+const { id } = Astro.params;
+const { data: post, error } = await db.from('posts').select('*').eq('id', id!).single();
+
+if (error || !post) return Astro.redirect('/admin/posts');
+
+const p = post as Post;
+const dateStr = new Date(p.date).toISOString().split('T')[0];
+const tagsStr = (p.tags ?? []).join(', ');
+---
+
+<Admin title={`Editar: ${p.title}`}>
+  <div>
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ vim blog/{p.slug}.md</p>
+        <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text);"># editar post</h1>
+      </div>
+      <button
+        id="instagram-btn"
+        style="
+          font-family: inherit; font-size: 0.75rem;
+          background: none; border: 1px solid var(--border);
+          color: var(--muted); padding: 0.45rem 0.875rem;
+          cursor: pointer; transition: border-color 0.2s, color 0.2s;
+        "
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"
+      >
+        ↗ postar no Instagram
+      </button>
+    </div>
+
+    <form id="post-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
+      <input type="hidden" id="post-id" value={p.id} />
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div>
+          <label class="field-label">título *</label>
+          <input id="f-title" type="text" required value={p.title} class="field-input" />
+        </div>
+        <div>
+          <label class="field-label">slug *</label>
+          <input id="f-slug" type="text" required value={p.slug} class="field-input" />
+        </div>
+      </div>
+
+      <div>
+        <label class="field-label">descrição *</label>
+        <input id="f-description" type="text" required value={p.description} class="field-input" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+        <div>
+          <label class="field-label">data *</label>
+          <input id="f-date" type="date" required value={dateStr} class="field-input" />
+        </div>
+        <div>
+          <label class="field-label">tags (vírgula)</label>
+          <input id="f-tags" type="text" value={tagsStr} class="field-input" />
+        </div>
+        <div>
+          <label class="field-label">projeto (slug)</label>
+          <input id="f-project" type="text" value={p.project ?? ''} class="field-input" />
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 2rem;">
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted); cursor: pointer;">
+          <input id="f-draft" type="checkbox" checked={p.draft} style="accent-color: var(--accent);" />
+          draft
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted); cursor: pointer;">
+          <input id="f-newsletter" type="checkbox" checked={p.newsletter} style="accent-color: var(--accent);" />
+          newsletter
+        </label>
+      </div>
+
+      <div>
+        <label class="field-label" style="margin-bottom: 0.5rem;">conteúdo (markdown)</label>
+        <MarkdownEditor name="content" initialValue={p.content} />
+      </div>
+
+      <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; padding-top: 0.5rem;">
+        <button
+          type="submit"
+          id="save-btn"
+          style="
+            font-family: inherit; font-size: 0.875rem; font-weight: 600;
+            background: var(--accent); color: var(--bg);
+            border: none; padding: 0.65rem 1.5rem;
+            cursor: pointer; transition: opacity 0.2s;
+          "
+        >
+          ❯ salvar alterações
+        </button>
+        <a href={`/blog/${p.slug}`} target="_blank" style="font-size: 0.8125rem; color: var(--muted);">ver post ↗</a>
+        <a href="/admin/posts" style="font-size: 0.8125rem; color: var(--subtle);">voltar</a>
+        <button
+          id="delete-btn"
+          type="button"
+          style="
+            margin-left: auto; font-family: inherit; font-size: 0.8125rem;
+            color: var(--subtle); background: none; border: none;
+            cursor: pointer; transition: color 0.2s;
+          "
+          onmouseover="this.style.color='#f87171'"
+          onmouseout="this.style.color='var(--subtle)'"
+        >
+          deletar post
+        </button>
+        <p id="save-error" style="font-size: 0.8125rem; color: #f87171; display: none; width: 100%;"></p>
+      </div>
+    </form>
+
+    <!-- Instagram modal -->
+    <div id="ig-modal" style="
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+      padding: 1.5rem;
+    ">
+      <div style="
+        background: var(--surface); border: 1px solid var(--border);
+        padding: 2rem; width: 100%; max-width: 480px;
+      ">
+        <h2 style="font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 1.5rem;">
+          ↗ postar no Instagram
+        </h2>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div>
+            <label class="field-label">URL da imagem * (obrigatório pelo Instagram)</label>
+            <input id="ig-image-url" type="url" placeholder="https://..." class="field-input" />
+          </div>
+          <div>
+            <label class="field-label">caption</label>
+            <textarea
+              id="ig-caption"
+              rows="4"
+              class="field-input"
+              style="resize: vertical;"
+            ></textarea>
+          </div>
+          <p id="ig-error" style="font-size: 0.8125rem; color: #f87171; display: none;"></p>
+          <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+            <button
+              id="ig-cancel"
+              type="button"
+              style="font-family: inherit; font-size: 0.8125rem; color: var(--muted); background: none; border: none; cursor: pointer;"
+            >
+              cancelar
+            </button>
+            <button
+              id="ig-submit"
+              type="button"
+              style="
+                font-family: inherit; font-size: 0.875rem; font-weight: 600;
+                background: var(--accent); color: var(--bg);
+                border: none; padding: 0.6rem 1.25rem; cursor: pointer;
+              "
+            >
+              ❯ publicar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Admin>
+
+<style>
+.field-label {
+  font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.4rem;
+}
+.field-input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: inherit; font-size: 0.875rem;
+  padding: 0.55rem 0.75rem; outline: none; transition: border-color 0.2s;
+}
+.field-input:focus { border-color: var(--accent); }
+
+@media (max-width: 600px) {
+  div[style*="grid-template-columns: 1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
+  div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
+</style>
+
+<script>
+  const postId = (document.getElementById('post-id') as HTMLInputElement).value;
+  const form = document.getElementById('post-form')!;
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+  const saveError = document.getElementById('save-error')!;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveError.style.display = 'none';
+    saveBtn.disabled = true;
+    saveBtn.textContent = '❯ salvando...';
+
+    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
+    const projectVal = (document.getElementById('f-project') as HTMLInputElement).value.trim();
+
+    const payload = {
+      title: (document.getElementById('f-title') as HTMLInputElement).value,
+      slug: (document.getElementById('f-slug') as HTMLInputElement).value,
+      description: (document.getElementById('f-description') as HTMLInputElement).value,
+      date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
+      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
+      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      newsletter: (document.getElementById('f-newsletter') as HTMLInputElement).checked,
+      project: projectVal || null,
+      content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
+    };
+
+    const res = await fetch(`/api/posts/${postId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      saveBtn.textContent = '✓ salvo!';
+      setTimeout(() => {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '❯ salvar alterações';
+      }, 1500);
+    } else {
+      const { error } = await res.json();
+      saveError.textContent = error ?? 'Erro ao salvar';
+      saveError.style.display = 'block';
+      saveBtn.disabled = false;
+      saveBtn.textContent = '❯ salvar alterações';
+    }
+  });
+
+  // Delete
+  document.getElementById('delete-btn')?.addEventListener('click', async () => {
+    const title = (document.getElementById('f-title') as HTMLInputElement).value;
+    if (!confirm(`Deletar "${title}"? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/posts/${postId}`, { method: 'DELETE' });
+    if (res.ok) {
+      window.location.href = '/admin/posts';
+    } else {
+      alert('Erro ao deletar post');
+    }
+  });
+
+  // Instagram modal
+  const modal = document.getElementById('ig-modal')!;
+  const igCaption = document.getElementById('ig-caption') as HTMLTextAreaElement;
+
+  document.getElementById('instagram-btn')?.addEventListener('click', () => {
+    // Pre-fill caption with post title + URL
+    const title = (document.getElementById('f-title') as HTMLInputElement).value;
+    const slug = (document.getElementById('f-slug') as HTMLInputElement).value;
+    const siteUrl = window.location.origin;
+    igCaption.value = `${title}\n\n${siteUrl}/blog/${slug}`;
+    modal.style.display = 'flex';
+  });
+
+  document.getElementById('ig-cancel')?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.style.display = 'none';
+  });
+
+  document.getElementById('ig-submit')?.addEventListener('click', async () => {
+    const igError = document.getElementById('ig-error')!;
+    const igSubmit = document.getElementById('ig-submit') as HTMLButtonElement;
+    const imageUrl = (document.getElementById('ig-image-url') as HTMLInputElement).value;
+    const caption = igCaption.value;
+
+    igError.style.display = 'none';
+    igSubmit.disabled = true;
+    igSubmit.textContent = '❯ publicando...';
+
+    const res = await fetch('/api/instagram-post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl, caption }),
+    });
+
+    if (res.ok) {
+      modal.style.display = 'none';
+      alert('Publicado no Instagram!');
+    } else {
+      const { error } = await res.json();
+      igError.textContent = error ?? 'Erro ao publicar';
+      igError.style.display = 'block';
+    }
+
+    igSubmit.disabled = false;
+    igSubmit.textContent = '❯ publicar';
+  });
+</script>

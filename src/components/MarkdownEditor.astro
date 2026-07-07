@@ -1,0 +1,157 @@
+---
+interface Props {
+  initialValue?: string;
+  name?: string;
+}
+const { initialValue = '', name = 'content' } = Astro.props;
+---
+
+<div class="md-editor-root">
+  <div class="md-editor-tabs">
+    <button type="button" class="md-tab active" data-tab="edit">edit</button>
+    <button type="button" class="md-tab" data-tab="preview">preview</button>
+    <span class="md-editor-hint">split view em desktop</span>
+  </div>
+
+  <div class="md-editor-panels">
+    <div id="md-editor-panel" class="md-panel">
+      <div id="md-cm-mount"></div>
+    </div>
+    <div id="md-preview-panel" class="md-panel prose md-preview">
+      <p style="color: var(--subtle); font-size: 0.8125rem;">loading preview...</p>
+    </div>
+  </div>
+
+  <!-- Hidden textarea synced with CodeMirror -->
+  <textarea id="md-content-value" name={name} style="display:none">{initialValue}</textarea>
+</div>
+
+<style>
+.md-editor-root {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.md-editor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0 0.75rem;
+}
+
+.md-tab {
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--subtle);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.md-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.md-editor-hint {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--subtle);
+}
+
+.md-editor-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 480px;
+}
+
+.md-panel {
+  overflow: auto;
+}
+
+.md-panel:first-child {
+  border-right: 1px solid var(--border);
+}
+
+.md-preview {
+  padding: 1.25rem 1.5rem;
+  background: var(--bg);
+  max-width: 100%;
+}
+
+/* Override .prose max-width in preview */
+.md-preview.prose {
+  max-width: 100%;
+}
+
+/* CodeMirror overrides to match theme */
+:global(.cm-editor) {
+  height: 100%;
+  min-height: 480px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+:global(.cm-scroller) { overflow: auto; }
+
+@media (max-width: 768px) {
+  .md-editor-panels {
+    grid-template-columns: 1fr;
+  }
+  .md-panel:first-child { border-right: none; }
+  .md-editor-hint { display: none; }
+
+  /* Mobile: tabs control visibility */
+  .md-editor-panels[data-tab="edit"] #md-preview-panel { display: none; }
+  .md-editor-panels[data-tab="preview"] #md-editor-panel { display: none; }
+}
+</style>
+
+<script>
+  import { EditorView, basicSetup } from 'codemirror';
+  import { markdown } from '@codemirror/lang-markdown';
+  import { oneDark } from '@codemirror/theme-one-dark';
+  import { marked } from 'marked';
+
+  const textarea = document.getElementById('md-content-value') as HTMLTextAreaElement;
+  const previewEl = document.getElementById('md-preview-panel')!;
+  const panelsEl = document.querySelector('.md-editor-panels')!;
+
+  function renderPreview(content: string) {
+    previewEl.innerHTML = marked.parse(content) as string;
+  }
+
+  const view = new EditorView({
+    doc: textarea.value,
+    extensions: [
+      basicSetup,
+      markdown(),
+      oneDark,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          const content = update.state.doc.toString();
+          textarea.value = content;
+          renderPreview(content);
+        }
+      }),
+    ],
+    parent: document.getElementById('md-cm-mount')!,
+  });
+
+  renderPreview(textarea.value);
+
+  // Mobile tabs
+  document.querySelectorAll<HTMLButtonElement>('.md-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.md-tab').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (window.innerWidth <= 768) {
+        panelsEl.setAttribute('data-tab', btn.dataset.tab ?? 'edit');
+      }
+    });
+  });
+
+  // Expose view for external access if needed
+  (window as any).__mdEditor = view;
+</script>

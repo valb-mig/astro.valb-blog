@@ -1,0 +1,86 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+const path = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} — Admin</title>
+  </head>
+  <body>
+    <header style="
+      position: sticky; top: 0; z-index: 100;
+      height: 3.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(9,9,11,0.95);
+      backdrop-filter: blur(12px);
+    ">
+      <div style="
+        max-width: 72rem; margin: 0 auto;
+        padding: 0 1.5rem; height: 100%;
+        display: flex; align-items: center; justify-content: space-between;
+      ">
+        <div style="display: flex; align-items: center; gap: 2rem;">
+          <a href="/admin/posts" style="font-size: 0.875rem;">
+            <span style="color: var(--accent);">~/</span>
+            <span style="color: var(--text); font-weight: 700;">admin</span>
+          </a>
+          <nav style="display: flex; gap: 1.5rem;">
+            <a
+              href="/admin/posts"
+              style={`font-size: 0.8125rem; color: ${path.startsWith('/admin/posts') ? 'var(--accent)' : 'var(--muted)'}; transition: color 0.2s;`}
+            >
+              posts
+            </a>
+            <a
+              href="/admin/projects"
+              style={`font-size: 0.8125rem; color: ${path.startsWith('/admin/projects') ? 'var(--accent)' : 'var(--muted)'}; transition: color 0.2s;`}
+            >
+              projects
+            </a>
+            <a
+              href="/"
+              style="font-size: 0.8125rem; color: var(--subtle); transition: color 0.2s;"
+              target="_blank"
+            >
+              ver site ↗
+            </a>
+          </nav>
+        </div>
+        <form method="POST" action="/api/auth/logout" id="logout-form">
+          <button
+            type="submit"
+            style="
+              font-family: inherit; font-size: 0.75rem;
+              color: var(--subtle); background: none; border: none;
+              cursor: pointer; transition: color 0.2s;
+            "
+            onmouseover="this.style.color='var(--text)'"
+            onmouseout="this.style.color='var(--subtle)'"
+          >
+            logout
+          </button>
+        </form>
+      </div>
+    </header>
+    <main style="max-width: 72rem; margin: 0 auto; padding: 2rem 1.5rem 8rem;">
+      <slot />
+    </main>
+
+    <script>
+      document.getElementById('logout-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/admin/login';
+      });
+    </script>
+  </body>
+</html>

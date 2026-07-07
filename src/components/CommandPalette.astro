@@ -1,0 +1,383 @@
+---
+import { db } from '../lib/db';
+
+const [postsRes, projectsRes] = await Promise.all([
+  db.from('posts').select('slug,title,description,tags').eq('draft', false).order('date', { ascending: false }),
+  db.from('projects').select('slug,title,description,status').eq('draft', false).order('date', { ascending: false }),
+]);
+
+type PaletteItem = {
+  type: 'post' | 'project' | 'nav' | 'action';
+  title: string;
+  subtitle?: string;
+  href?: string;
+  action?: string;
+  keywords?: string;
+};
+
+const items: PaletteItem[] = [
+  ...(postsRes.data ?? []).map((p) => ({
+    type: 'post' as const,
+    title: p.title,
+    subtitle: p.description ?? '',
+    href: `/blog/${p.slug}`,
+    keywords: (p.tags ?? []).join(' '),
+  })),
+  ...(projectsRes.data ?? []).map((p) => ({
+    type: 'project' as const,
+    title: p.title,
+    subtitle: p.description ?? '',
+    href: `/projects/${p.slug}`,
+    keywords: p.status,
+  })),
+  { type: 'nav', title: 'Home', subtitle: '~/', href: '/' },
+  { type: 'nav', title: 'Blog', subtitle: 'todos os posts', href: '/blog' },
+  { type: 'nav', title: 'Projects', subtitle: 'projetos', href: '/projects' },
+  { type: 'nav', title: 'About', subtitle: 'sobre mim', href: '/about' },
+  { type: 'nav', title: 'RSS Feed', subtitle: '/rss.xml', href: '/rss.xml' },
+  { type: 'action', title: 'Copiar URL', subtitle: 'copia URL atual', action: 'copy-url' },
+];
+---
+
+<div id="cmd-palette" aria-hidden="true">
+  <div id="cmd-backdrop"></div>
+  <div id="cmd-modal" role="dialog" aria-label="Command Palette">
+    <div id="cmd-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--subtle);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="cmd-input" type="text" placeholder="Buscar posts, projetos, páginas..." autocomplete="off" spellcheck="false" />
+      <kbd>esc</kbd>
+    </div>
+    <div id="cmd-results"></div>
+    <div id="cmd-footer">
+      <span><kbd>↑↓</kbd> navegar</span>
+      <span><kbd>↵</kbd> abrir</span>
+      <span><kbd>esc</kbd> fechar</span>
+      <span><kbd>ctrl k</kbd> alternar</span>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ items }}>
+  const palette = document.getElementById('cmd-palette');
+  const backdrop = document.getElementById('cmd-backdrop');
+  const input = document.getElementById('cmd-input');
+  const results = document.getElementById('cmd-results');
+
+  let activeIdx = -1;
+  let filtered = [];
+
+  const ICONS = {
+    post:    '📄',
+    project: '📁',
+    nav:     '→',
+    action:  '⚡',
+  };
+
+  const SVG_ICONS = {
+    post: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+    project: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+    nav: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg>`,
+    action: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/></svg>`,
+  };
+
+  const GROUP_LABELS = { post: 'Posts', project: 'Projetos', nav: 'Navegação', action: 'Ações' };
+
+  function open() {
+    palette.setAttribute('aria-hidden', 'false');
+    input.value = '';
+    activeIdx = -1;
+    renderResults('');
+    requestAnimationFrame(() => input.focus());
+  }
+
+  function close() {
+    palette.setAttribute('aria-hidden', 'true');
+    input.value = '';
+    activeIdx = -1;
+  }
+
+  function fuzzy(query, item) {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const text = `${item.title} ${item.subtitle ?? ''} ${item.keywords ?? ''}`.toLowerCase();
+    // contiguous match first, then char-by-char
+    if (text.includes(q)) return true;
+    let ti = 0;
+    for (const ch of q) {
+      ti = text.indexOf(ch, ti);
+      if (ti === -1) return false;
+      ti++;
+    }
+    return true;
+  }
+
+  function highlightMatch(text, query) {
+    if (!query) return text;
+    const q = query.toLowerCase();
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx === -1) return text;
+    return text.slice(0, idx) + `<mark>${text.slice(idx, idx + q.length)}</mark>` + text.slice(idx + q.length);
+  }
+
+  function renderResults(query) {
+    filtered = items.filter((item) => fuzzy(query, item));
+
+    if (filtered.length === 0) {
+      results.innerHTML = `<div class="cmd-empty">Nenhum resultado para "<em>${query}</em>"</div>`;
+      activeIdx = -1;
+      return;
+    }
+
+    const groups = {};
+    filtered.forEach((item, i) => {
+      if (!groups[item.type]) groups[item.type] = [];
+      groups[item.type].push({ item, i });
+    });
+
+    const order = ['post', 'project', 'nav', 'action'];
+    let html = '';
+    for (const type of order) {
+      if (!groups[type]) continue;
+      html += `<div class="cmd-group-label">${GROUP_LABELS[type]}</div>`;
+      for (const { item, i } of groups[type]) {
+        html += `<button class="cmd-item" data-idx="${i}" data-href="${item.href ?? ''}" data-action="${item.action ?? ''}">
+          <span class="cmd-item-icon" style="color:var(--accent)">${SVG_ICONS[item.type]}</span>
+          <span class="cmd-item-body">
+            <span class="cmd-item-title">${highlightMatch(item.title, query)}</span>
+            ${item.subtitle ? `<span class="cmd-item-sub">${item.subtitle}</span>` : ''}
+          </span>
+          ${item.href ? `<span class="cmd-item-path">${item.href}</span>` : ''}
+        </button>`;
+      }
+    }
+    results.innerHTML = html;
+
+    results.querySelectorAll('.cmd-item').forEach((btn) => {
+      btn.addEventListener('click', () => activate(parseInt(btn.dataset.idx)));
+      btn.addEventListener('mouseenter', () => {
+        activeIdx = parseInt(btn.dataset.idx);
+        updateActive();
+      });
+    });
+
+    if (activeIdx >= filtered.length) activeIdx = 0;
+    updateActive();
+  }
+
+  function updateActive() {
+    results.querySelectorAll('.cmd-item').forEach((btn) => {
+      btn.classList.toggle('active', parseInt(btn.dataset.idx) === activeIdx);
+      if (parseInt(btn.dataset.idx) === activeIdx) {
+        btn.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  function activate(idx) {
+    const item = filtered[idx];
+    if (!item) return;
+    if (item.action === 'copy-url') {
+      navigator.clipboard.writeText(window.location.href);
+      close();
+      return;
+    }
+    if (item.href) {
+      window.location.href = item.href;
+      close();
+    }
+  }
+
+  input.addEventListener('input', () => {
+    activeIdx = 0;
+    renderResults(input.value.trim());
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, filtered.length - 1); updateActive(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); updateActive(); }
+    else if (e.key === 'Enter') { e.preventDefault(); activate(activeIdx); }
+    else if (e.key === 'Escape') close();
+  });
+
+  backdrop.addEventListener('click', close);
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      palette.getAttribute('aria-hidden') === 'false' ? close() : open();
+    }
+    if (e.key === 'Escape' && palette.getAttribute('aria-hidden') === 'false') close();
+  });
+
+  // expose open for header button
+  window.__cmdOpen = open;
+</script>
+
+<style>
+#cmd-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  pointer-events: none;
+}
+#cmd-palette[aria-hidden="false"] {
+  pointer-events: all;
+}
+
+#cmd-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+#cmd-palette[aria-hidden="false"] #cmd-backdrop { opacity: 1; }
+
+#cmd-modal {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0.97) translateY(-8px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+#cmd-palette[aria-hidden="false"] #cmd-modal {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+#cmd-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+#cmd-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+#cmd-input::placeholder { color: var(--subtle); }
+#cmd-header kbd {
+  font-size: 0.65rem;
+  color: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.15rem 0.4rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+#cmd-results {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 0.375rem 0;
+}
+
+.cmd-group-label {
+  font-size: 0.65rem;
+  color: var(--subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.5rem 1rem 0.25rem;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text);
+  transition: background 0.1s;
+}
+.cmd-item:hover, .cmd-item.active {
+  background: rgba(52, 211, 153, 0.08);
+}
+.cmd-item.active .cmd-item-title { color: var(--accent); }
+
+.cmd-item-icon { flex-shrink: 0; display: flex; }
+.cmd-item-body { flex: 1; min-width: 0; }
+.cmd-item-title {
+  font-size: 0.8125rem;
+  color: var(--text);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd-item-sub {
+  font-size: 0.7rem;
+  color: var(--subtle);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmd-item-path {
+  font-size: 0.65rem;
+  color: var(--subtle);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.cmd-item mark {
+  background: none;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cmd-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--subtle);
+  font-size: 0.8125rem;
+}
+
+#cmd-footer {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+}
+#cmd-footer span {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  color: var(--subtle);
+}
+#cmd-footer kbd {
+  font-size: 0.6rem;
+  color: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+#cmd-results::-webkit-scrollbar { width: 4px; }
+#cmd-results::-webkit-scrollbar-track { background: transparent; }
+#cmd-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>

@@ -1,0 +1,25 @@
+---
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  type: 'post' | 'project' | 'tag' | 'rss' | 'about' | 'ts' | 'config';
+  size?: number;
+  class?: string;
+}
+
+const { type, size = 16, class: cls } = Astro.props;
+
+const iconMap: Record<string, string> = {
+  post:    'vscode-icons:file-type-markdown',
+  project: 'vscode-icons:default-folder-opened',
+  tag:     'lucide:hash',
+  rss:     'lucide:rss',
+  about:   'vscode-icons:file-type-text',
+  ts:      'vscode-icons:file-type-typescript',
+  config:  'vscode-icons:file-type-config',
+};
+
+const iconName = iconMap[type] ?? 'vscode-icons:file-type-markdown';
+---
+
+<Icon name={iconName} width={size} height={size} class={cls} />

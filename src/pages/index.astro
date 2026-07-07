@@ -2,54 +2,126 @@
 import Base from '../layouts/Base.astro';
 import PostCard from '../components/PostCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
-import { getCollection } from 'astro:content';
+import { db } from '../lib/db';
+import type { Post, Project } from '../lib/db';
 
-const allPosts = await getCollection('blog', ({ data }) => !data.draft);
-const allProjects = await getCollection('projects', ({ data }) => !data.draft);
+const [postsRes, projectsRes] = await Promise.all([
+  db
+    .from('posts')
+    .select('id,slug,title,description,date,tags,project,newsletter,reading_time')
+    .eq('draft', false)
+    .order('date', { ascending: false })
+    .limit(3),
+  db
+    .from('projects')
+    .select('id,slug,title,description,date,tags,status,repo,url')
+    .eq('draft', false)
+    .eq('status', 'active')
+    .order('date', { ascending: false })
+    .limit(3),
+]);
 
-const latestPosts = allPosts
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
-  .slice(0, 3);
+const latestPosts = (postsRes.data ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'project'|'newsletter'|'reading_time'>[];
+const activeProjects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'|'url'>[];
 
-const activeProjects = allProjects
-  .filter((p) => p.data.status === 'active')
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
-  .slice(0, 3);
+// Post counts per project
+const { data: postProjectData } = await db
+  .from('posts')
+  .select('project')
+  .eq('draft', false)
+  .not('project', 'is', null);
 
-// Count posts per project
 const postCountMap: Record<string, number> = {};
-allPosts.forEach((post) => {
-  if (post.data.project) {
-    postCountMap[post.data.project] = (postCountMap[post.data.project] ?? 0) + 1;
-  }
+(postProjectData ?? []).forEach((p: { project: string | null }) => {
+  if (p.project) postCountMap[p.project] = (postCountMap[p.project] ?? 0) + 1;
 });
 ---
 
 <Base title="~/blog">
   <div style="max-width: 72rem; margin: 0 auto; padding: 0 1.5rem;">
+
+    <!-- Hero / whoami -->
+    <section class="hero fade-in">
+      <div class="hero-terminal">
+        <div class="terminal-bar">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+          <span class="terminal-title">bash — ~/valb</span>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="prompt">❯</span>
+            <span class="cmd">whoami</span>
+          </div>
+          <div class="terminal-output">
+            <p class="hero-name">valb-mig</p>
+          </div>
+          <div class="terminal-line" style="margin-top: 0.75rem;">
+            <span class="prompt">❯</span>
+            <span class="cmd">cat about.md</span>
+          </div>
+          <div class="terminal-output">
+            <p class="hero-bio">Desenvolvedor apaixonado por ferramentas, automação e interfaces bonitas. Escrevo sobre código, projetos e ideias.</p>
+          </div>
+          <div class="terminal-line" style="margin-top: 0.75rem;">
+            <span class="prompt">❯</span>
+            <span class="cmd">ls -1 links/</span>
+          </div>
+          <div class="terminal-output hero-links">
+            <a href="https://github.com/valb-mig" target="_blank" rel="noopener" class="hero-link">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+              github.com/valb-mig
+            </a>
+            <a href="/rss.xml" class="hero-link">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+              rss feed
+            </a>
+            <button class="hero-link hero-cmd-btn" onclick="window.__cmdOpen?.()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              buscar (ctrl+k)
+            </button>
+          </div>
+          <div class="terminal-line" style="margin-top: 0.75rem;">
+            <span class="prompt">❯</span>
+            <span class="cursor-blink">▋</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Latest Posts -->
-    <section style="padding: 6rem 0 5rem;">
+    <section style="padding: 2rem 0 5rem;">
       <div style="margin-bottom: 1.5rem;">
         <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ ls -t blog/</p>
         <div style="display: flex; align-items: baseline; justify-content: space-between;">
           <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text);"># posts recentes</h2>
-          <a href="/blog" style="font-size: 0.75rem; color: var(--subtle); transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">ver todos →</a>
+          <a href="/blog" style="font-size: 0.75rem; color: var(--subtle); transition: color 0.2s;"
+            onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">
+            ver todos →
+          </a>
         </div>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-        {latestPosts.map((post, i) => (
-          <PostCard
-            title={post.data.title}
-            description={post.data.description}
-            date={post.data.date}
-            slug={post.slug}
-            tags={post.data.tags}
-            project={post.data.project}
-            newsletter={post.data.newsletter}
-            delay={i * 80}
-          />
-        ))}
-      </div>
+      {latestPosts.length > 0 ? (
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+          {latestPosts.map((post, i) => (
+            <PostCard
+              id={post.id}
+              slug={post.slug}
+              title={post.title}
+              description={post.description}
+              date={post.date}
+              tags={post.tags}
+              project={post.project}
+              newsletter={post.newsletter}
+              reading_time={post.reading_time}
+              delay={i * 80}
+            />
+          ))}
+        </div>
+      ) : (
+        <p style="color: var(--subtle); font-size: 0.875rem;">nenhum post ainda.</p>
+      )}
     </section>
 
     <!-- Active Projects -->
@@ -59,20 +131,23 @@ allPosts.forEach((post) => {
           <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ ls projects/ --filter=active</p>
           <div style="display: flex; align-items: baseline; justify-content: space-between;">
             <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text);"># projetos ativos</h2>
-            <a href="/projects" style="font-size: 0.75rem; color: var(--subtle); transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">ver todos →</a>
+            <a href="/projects" style="font-size: 0.75rem; color: var(--subtle); transition: color 0.2s;"
+              onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--subtle)';">
+              ver todos →
+            </a>
           </div>
         </div>
         <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
           {activeProjects.map((project, i) => (
             <ProjectCard
-              title={project.data.title}
-              description={project.data.description}
-              date={project.data.date}
+              title={project.title}
+              description={project.description}
+              date={new Date(project.date)}
               slug={project.slug}
-              tags={project.data.tags}
-              status={project.data.status}
-              repo={project.data.repo}
-              url={project.data.url}
+              tags={project.tags}
+              status={project.status}
+              repo={project.repo ?? undefined}
+              url={project.url ?? undefined}
               postCount={postCountMap[project.slug] ?? 0}
               delay={i * 80}
             />
@@ -82,3 +157,94 @@ allPosts.forEach((post) => {
     )}
   </div>
 </Base>
+
+<style>
+/* Hero terminal */
+.hero {
+  padding: 4rem 0 3rem;
+}
+.hero-terminal {
+  max-width: 600px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.terminal-bar {
+  background: #1e1e1e;
+  border-bottom: 1px solid var(--border);
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.dot-red    { background: #ff5f57; }
+.dot-yellow { background: #febc2e; }
+.dot-green  { background: #28c840; }
+.terminal-title {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--subtle);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.terminal-body {
+  background: var(--bg);
+  padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.terminal-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+.prompt { color: var(--accent); }
+.cmd { color: var(--text); }
+.terminal-output {
+  padding-left: 1.25rem;
+  margin-top: 0.2rem;
+}
+.hero-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.hero-bio {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 48ch;
+}
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.1rem;
+}
+.hero-link {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--subtle);
+  text-decoration: none;
+  transition: color 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 0;
+}
+.hero-link:hover { color: var(--accent); }
+.hero-cmd-btn { color: var(--subtle); }
+</style>
