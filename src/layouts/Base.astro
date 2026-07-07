@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import CommandPalette from '../components/CommandPalette.astro';
 
 interface Props {
   title: string;
@@ -50,10 +51,20 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   </head>
   <body>
     <Header />
+    <CommandPalette />
     <main>
       <slot />
     </main>
     <Footer />
+
+    <script>
+      // Client-side syntax highlighting for rendered markdown
+      import hljs from 'highlight.js';
+      import 'highlight.js/styles/github-dark.css';
+      document.querySelectorAll('pre code').forEach((el) => {
+        hljs.highlightElement(el as HTMLElement);
+      });
+    </script>
 
     <script>
       // Scroll-triggered fade-in via IntersectionObserver

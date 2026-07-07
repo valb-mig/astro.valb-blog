@@ -108,3 +108,8 @@ a { color: inherit; text-decoration: none; }
   color: var(--subtle);
   margin: 1.5rem 0;
 }
+
+/* highlight.js: override background to match theme */
+.hljs { background: var(--surface) !important; }
+.prose pre { background: var(--surface); padding: 0; }
+.prose pre code.hljs { padding: 1.25rem; display: block; overflow-x: auto; }
