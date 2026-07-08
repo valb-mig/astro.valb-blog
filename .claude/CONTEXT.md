@@ -22,7 +22,9 @@ CONTEXT.md como fonte de verdade até alguém reescrever o CLAUDE.md.
 - **Tailwind CSS v4** + **shadcn/ui** (style `radix-nova`, base color
   `neutral`) — ver `components.json` e `src/styles/global.css`
 - **React 19** via `@astrojs/react`, ilhas pontuais (CommandMenu, DeleteButton,
-  editor)
+  editor, `MultiSelect` — combobox de tags/projetos no admin, construído com
+  Command+Dialog+Badge porque shadcn (style `radix-nova`) não tem multi-select
+  nem Popover prontos)
 - Fonte **Geist Variable** (`@fontsource-variable/geist`) — não mais
   JetBrains Mono
 - Tema único dark fixo, cores em `oklch()`, sem toggle light/dark
@@ -37,10 +39,15 @@ CONTEXT.md como fonte de verdade até alguém reescrever o CLAUDE.md.
 
 ### Dados (Supabase)
 - `posts` — title, description, content, date, tags, draft, newsletter,
-  project (slug), reading_time
+  reading_time (não tem mais `project` — ver `post_projects`)
 - `projects` — title, description, content, date, tags, status
   (active/completed/archived), repo, url, draft, `parent_project_id`
   (self-FK para vincular projeto a projeto)
+- `post_projects` — join many-to-many `post_id ↔ project_id` (um post pode
+  se vincular a vários projetos). Substituiu a antiga coluna
+  `posts.project` (slug único) em 2026-07-08; migração rodada manualmente
+  no Supabase (sem SQL versionado no repo, ver decisão sobre
+  `supabase-schema.sql` abaixo)
 - `source_events` — event-sourcing genérico de atividade (`source`,
   `type: commit|issue|pull_request|release`, `external_id`, `repo`, `url`,
   `title`, `payload jsonb`, `occurred_at`); unique
@@ -97,6 +104,12 @@ um post estruturado por repo. Fluxo atual:
 6. `pnpm ingest:local -- --force` força reconstrução do post do dia mesmo
    sem evento novo (útil pra testar mudança de prompt sem esperar atividade
    real)
+7. **Sync diário de projetos** (2026-07-08): antes de tudo isso, `main()`
+   lista todos os repos do usuário via `octokit.paginate(repos.listForAuthenticatedUser)`
+   e cria um projeto novo em `projects` pra cada repo sem registro ainda
+   (match pela coluna `repo`). Nunca sobrescreve projeto existente — edição
+   manual no admin sobrevive a reruns do cron. Roda sempre, com ou sem
+   atividade nova.
 
 Secrets necessários: `GH_TOKEN`, `GH_USERNAME`, `GROQ_API_KEY`,
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
@@ -129,16 +142,28 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
   reação; comentário sem fingerprint unique, só rate-limit.
 - **Wakatime**: sem storage, sem entrar no ingest — seria widget com rota
   própria fazendo proxy com cache curto (~5min). Ainda não implementado.
+- **Post↔Projeto N:N via tabela de junção** (2026-07-08) — em vez de array
+  de slugs em `posts.project`, decisão explícita do usuário por
+  normalização/query reversa mais fácil ("quais posts citam esse projeto").
+- **Tags multi-select criável, sem tabela nova** — tags continuam `string[]`
+  solto em `posts.tags`; "criar tag" no combobox é só adicionar ao array,
+  sem persistir lista de tags em lugar nenhum.
+- **Sync de projeto nunca sobrescreve existente** — só cria registro novo
+  pra repo sem match; evita que o cron apague edição manual do usuário no
+  admin.
 
 ## Estado atual
 
 **Pronto:**
 - Migração SSR+Supabase completa (schema, CRUD, auth admin)
-- Pipeline de ingest GitHub→Groq→Supabase rodando via GH Actions
+- Pipeline de ingest GitHub→Groq→Supabase rodando via GH Actions, com
+  parágrafo por repo + sync diário de projetos
 - Refactor visual pra Tailwind v4 + shadcn/ui (componentes, Header, Footer,
-  cards, CommandMenu, DeleteButton) — commits mais recentes da branch
-  `valb-mig/shadcn-refactor`
+  cards, CommandMenu, DeleteButton)
 - Command palette (Ctrl+K) via `/api/command-items`
+- Post↔Projeto N:N (`post_projects`) com multi-select no admin pra tags e
+  projetos — projetos vêm da tabela `projects`, sincronizada automaticamente
+  do GitHub (44 repos sincronizados na primeira run)
 
 **Em andamento / não confirmado como completo:**
 - Tabelas do Supabase (`posts`, `projects`, `source_events`, `post_events`)
@@ -154,7 +179,8 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
 - Reações/comentários anônimos em posts
 - Widget Wakatime
 - Aba "Sobre mim" com fotos reais (hoje é placeholder/avatar)
-- Vínculo de projetos pessoais fora do GitHub / stack detectada de repositórios
+- Suporte a projetos pessoais fora do GitHub (sync hoje só cobre repos reais)
+- Stack/linguagens detectadas de repositórios em `/projects`
 
 **Ideia descartada:** publicação no Instagram — removida do escopo em
 2026-07-08. Código do scaffold (`src/pages/api/instagram-post.ts`) ainda

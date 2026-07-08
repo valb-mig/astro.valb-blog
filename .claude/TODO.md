@@ -6,9 +6,11 @@ real do código.
 
 ## Pendente — antes de produção
 
-- [ ] Confirmar se as tabelas existem no Supabase real (`posts`, `projects`,
-      `source_events`, `post_events`) — `supabase-schema.sql` foi removido do
-      repo (commit `236b660`), não há mais SQL versionado como fonte de verdade
+- [x] Confirmar se as tabelas existem no Supabase real — confirmado em
+      2026-07-08 (`posts`, `projects`, `source_events`, `post_events`,
+      `post_projects` todas existem e têm dado real). `supabase-schema.sql`
+      continua removido do repo (commit `236b660`), sem SQL versionado como
+      fonte de verdade — qualquer schema novo precisa de migração manual
 - [ ] Configurar `.env` de produção: Supabase URL/service key, `ADMIN_USERNAME`/
       `ADMIN_PASSWORD`, `SESSION_SECRET`, `GH_TOKEN`/`GH_USERNAME`, `GROQ_API_KEY`
 - [ ] Atualizar `site` em `astro.config.mjs` (ainda `'https://fake'`)
@@ -30,7 +32,8 @@ real do código.
       é placeholder)
 - [ ] Anúncio de detecção de linguagens/stack de repositórios GitHub em
       `/projects`
-- [ ] Suporte a projetos pessoais fora do GitHub (sem repo vinculado)
+- [ ] Suporte a projetos pessoais fora do GitHub (sem repo vinculado) — sync
+      diário de `scripts/ingest.ts` só cria projeto pra repo real do GitHub
 - [ ] Posts vinculados a commits/issues/PRs específicos (não só ao projeto)
       com embed de imagem no texto — decisão: sem tabela nova, resolvido só
       na UI do editor
@@ -59,8 +62,15 @@ real do código.
 - [x] CommandMenu (Ctrl+K) via React/shadcn substituindo CommandPalette antigo (`e190aa1`)
 - [x] Refactor de componentes/páginas restantes pra shadcn/ui + DeleteButton (`9e66a88`)
 - [x] Remoção do `supabase-schema.sql` do repo (`236b660`) — ver pendência acima
-- [x] Reescrita do `scripts/ingest.ts` (2026-07-08, não commitado ainda):
-      parse de conventional commits, dedup merge-commit×PR, agrupamento por
-      repo, parágrafo por repo via Groq (JSON estruturado) com detecção de
-      projeto novo + descrição real do GitHub, commits movidos pra bloco
-      `<details>` colapsável, flag `--force` pra rebuild manual
+- [x] Reescrita do `scripts/ingest.ts` (2026-07-08): parse de conventional
+      commits, dedup merge-commit×PR, agrupamento por repo, parágrafo por
+      repo via Groq (JSON estruturado) com detecção de projeto novo +
+      descrição real do GitHub, commits movidos pra bloco `<details>`
+      colapsável, flag `--force` pra rebuild manual
+- [x] Post↔Projeto N:N via `post_projects` (2026-07-08) — substitui
+      `posts.project` (slug único); API de posts aceita/retorna `projectIds`
+- [x] Componente `MultiSelect` (Command+Dialog+Badge) substituindo inputs de
+      texto livre de tags/projeto no admin de posts (2026-07-08)
+- [x] Sync diário de projetos do GitHub em `scripts/ingest.ts` (2026-07-08)
+      — cria projeto novo por repo sem registro ainda, nunca sobrescreve
+      existente; 44 projetos sincronizados na primeira run
