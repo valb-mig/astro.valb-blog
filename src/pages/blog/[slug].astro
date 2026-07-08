@@ -26,15 +26,15 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
   day: 'numeric',
 });
 
-let projectTitle: string | null = null;
-if (p.project) {
-  const { data: proj } = await db
-    .from('projects')
-    .select('title')
-    .eq('slug', p.project)
-    .single();
-  projectTitle = proj?.title ?? null;
-}
+const { data: postProjectRows } = await db
+  .from('post_projects')
+  .select('projects(slug, title)')
+  .eq('post_id', p.id);
+
+type PostProjectRow = { projects: { slug: string; title: string } | null };
+const linkedProjects = ((postProjectRows ?? []) as unknown as PostProjectRow[])
+  .map((row) => row.projects)
+  .filter((proj): proj is { slug: string; title: string } => proj !== null);
 ---
 
 <Base title={p.title} description={p.description} og={{ type: 'article' }}>
@@ -56,11 +56,11 @@ if (p.project) {
         <span>{dateStr}</span>
         <span>{p.reading_time} min de leitura</span>
         {p.newsletter && <Badge variant="secondary">newsletter</Badge>}
-        {p.project && projectTitle && (
-          <a href={`/projects/${p.project}`} class="transition-colors hover:text-foreground">
-            <Badge variant="outline">{projectTitle}</Badge>
+        {linkedProjects.map((proj) => (
+          <a href={`/projects/${proj.slug}`} class="transition-colors hover:text-foreground">
+            <Badge variant="outline">{proj.title}</Badge>
           </a>
-        )}
+        ))}
       </div>
 
       {(p.tags ?? []).length > 0 && (

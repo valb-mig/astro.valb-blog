@@ -4,20 +4,20 @@ import ProjectCard from '../../components/ProjectCard.astro';
 import { db } from '../../lib/db';
 import type { Project } from '../../lib/db';
 
-const [projectsRes, postCountRes] = await Promise.all([
+const [projectsRes, postProjectRes] = await Promise.all([
   db
     .from('projects')
     .select('id,slug,title,description,date,tags,status,repo,url')
     .eq('draft', false)
     .order('date', { ascending: false }),
-  db.from('posts').select('project').eq('draft', false).not('project', 'is', null),
+  db.from('post_projects').select('project_id, posts!inner(draft)').eq('posts.draft', false),
 ]);
 
 const projects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'|'url'>[];
 
 const postCountMap: Record<string, number> = {};
-(postCountRes.data ?? []).forEach((p: { project: string | null }) => {
-  if (p.project) postCountMap[p.project] = (postCountMap[p.project] ?? 0) + 1;
+((postProjectRes.data ?? []) as unknown as { project_id: string }[]).forEach((row) => {
+  postCountMap[row.project_id] = (postCountMap[row.project_id] ?? 0) + 1;
 });
 
 const sections = [
@@ -45,7 +45,7 @@ const sections = [
               status={p.status}
               repo={p.repo ?? undefined}
               url={p.url ?? undefined}
-              postCount={postCountMap[p.slug] ?? 0}
+              postCount={postCountMap[p.id] ?? 0}
               delay={i * 80}
             />
           ))}

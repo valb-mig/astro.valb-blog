@@ -10,7 +10,7 @@ import type { Post, Project } from '../lib/db';
 const [postsRes, projectsRes, postProjectRes] = await Promise.all([
   db
     .from('posts')
-    .select('id,slug,title,description,date,tags,project,newsletter,reading_time')
+    .select('id,slug,title,description,date,tags,newsletter,reading_time')
     .eq('draft', false)
     .order('date', { ascending: false })
     .limit(3),
@@ -22,22 +22,26 @@ const [postsRes, projectsRes, postProjectRes] = await Promise.all([
     .order('date', { ascending: false })
     .limit(3),
   db
-    .from('posts')
-    .select('project')
-    .eq('draft', false)
-    .not('project', 'is', null),
+    .from('post_projects')
+    .select('post_id, project_id, projects(slug, title), posts!inner(draft)')
+    .eq('posts.draft', false),
 ]);
 
-const latestPosts = (postsRes.data ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'project'|'newsletter'|'reading_time'>[];
+const latestPosts = (postsRes.data ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'newsletter'|'reading_time'>[];
 const activeProjects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'|'url'>[];
 
-// Post counts per project
-const postProjectData = postProjectRes.data;
+type PostProjectRow = { post_id: string; project_id: string; projects: { slug: string; title: string } | null };
+const postProjectRows = (postProjectRes.data ?? []) as unknown as PostProjectRow[];
 
+// Projetos linkados por post + contagem de posts por projeto, ambos derivados
+// da mesma query de post_projects.
+const projectsByPostId: Record<string, { slug: string; title: string }[]> = {};
 const postCountMap: Record<string, number> = {};
-(postProjectData ?? []).forEach((p: { project: string | null }) => {
-  if (p.project) postCountMap[p.project] = (postCountMap[p.project] ?? 0) + 1;
-});
+for (const row of postProjectRows) {
+  if (!row.projects) continue;
+  (projectsByPostId[row.post_id] ??= []).push(row.projects);
+  postCountMap[row.project_id] = (postCountMap[row.project_id] ?? 0) + 1;
+}
 ---
 
 <Base title="valb">
@@ -87,7 +91,7 @@ const postCountMap: Record<string, number> = {};
               description={post.description}
               date={post.date}
               tags={post.tags}
-              project={post.project}
+              projects={projectsByPostId[post.id] ?? []}
               newsletter={post.newsletter}
               reading_time={post.reading_time}
               delay={i * 80}
@@ -119,7 +123,7 @@ const postCountMap: Record<string, number> = {};
               status={project.status}
               repo={project.repo ?? undefined}
               url={project.url ?? undefined}
-              postCount={postCountMap[project.slug] ?? 0}
+              postCount={postCountMap[project.id] ?? 0}
               delay={i * 80}
             />
           ))}
