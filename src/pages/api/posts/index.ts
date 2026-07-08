@@ -7,7 +7,7 @@ export const GET: APIRoute = async ({ cookies }) => {
 
   let query = db
     .from('posts')
-    .select('id,slug,title,description,date,tags,draft,newsletter,project,reading_time')
+    .select('id,slug,title,description,date,tags,draft,newsletter,reading_time')
     .order('date', { ascending: false });
 
   if (!isAdmin) query = query.eq('draft', false);
@@ -26,13 +26,23 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 
   const body = await request.json();
+  const { projectIds, ...postFields } = body;
+
   const { data, error } = await db
     .from('posts')
-    .insert({ ...body, reading_time: calcReadingTime(body.content ?? '') })
+    .insert({ ...postFields, reading_time: calcReadingTime(postFields.content ?? '') })
     .select()
     .single();
 
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+
+  if (Array.isArray(projectIds) && projectIds.length) {
+    const { error: linkError } = await db
+      .from('post_projects')
+      .insert(projectIds.map((project_id: string) => ({ post_id: data.id, project_id })));
+    if (linkError) return new Response(JSON.stringify({ error: linkError.message }), { status: 500 });
+  }
+
   return new Response(JSON.stringify(data), {
     status: 201,
     headers: { 'Content-Type': 'application/json' },

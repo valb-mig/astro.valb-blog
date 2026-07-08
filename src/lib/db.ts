@@ -10,7 +10,6 @@ export type Post = {
   tags: string[];
   draft: boolean;
   newsletter: boolean;
-  project: string | null;
   reading_time: number;
   created_at: string;
   updated_at: string;
