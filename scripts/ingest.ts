@@ -15,6 +15,68 @@ const groq = new Groq({ apiKey: GROQ_API_KEY });
 
 type NewEvent = Omit<SourceEvent, 'id' | 'created_at'>;
 
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function uniqueProjectSlug(name: string): Promise<string> {
+  const base = slugify(name);
+  let slug = base;
+  let n = 2;
+  while (true) {
+    const { data } = await db.from('projects').select('id').eq('slug', slug).maybeSingle();
+    if (!data) return slug;
+    slug = `${base}-${n++}`;
+  }
+}
+
+// Sync diário: cria projeto pra cada repo do GitHub que ainda não tem
+// registro em `projects` (match pela coluna repo = "owner/name"). Nunca
+// sobrescreve um projeto existente — edição manual no admin nunca se perde.
+async function syncProjectsFromGithub(): Promise<void> {
+  const repos = await octokit.paginate(octokit.rest.repos.listForAuthenticatedUser, {
+    affiliation: 'owner',
+    per_page: 100,
+  });
+
+  if (!repos.length) return;
+
+  const { data: existing, error: existingError } = await db.from('projects').select('repo').not('repo', 'is', null);
+  if (existingError) throw existingError;
+
+  const existingRepos = new Set((existing ?? []).map((p) => p.repo));
+  const newRepos = repos.filter((r) => !existingRepos.has(r.full_name));
+
+  if (!newRepos.length) {
+    console.log('Nenhum projeto novo pra sincronizar do GitHub.');
+    return;
+  }
+
+  for (const repo of newRepos) {
+    const slug = await uniqueProjectSlug(repo.name);
+    const { error } = await db.from('projects').insert({
+      slug,
+      title: repo.name,
+      description: repo.description ?? '',
+      content: '',
+      date: repo.created_at ?? new Date().toISOString(),
+      tags: [],
+      status: repo.archived ? 'archived' : 'active',
+      repo: repo.full_name,
+      url: repo.html_url,
+      draft: false,
+    });
+    if (error) console.warn(`Falha ao criar projeto pro repo ${repo.full_name}:`, error.message);
+  }
+
+  console.log(`${newRepos.length} projeto(s) novo(s) sincronizado(s) do GitHub.`);
+}
+
 async function fetchPushCommits(
   repo: string,
   before: string,
@@ -508,6 +570,8 @@ async function rebuildPostContent(postId: string): Promise<number> {
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
   const slug = todaySlug();
+
+  await syncProjectsFromGithub();
 
   const newEvents = await fetchRecentEvents();
   let insertedCount = 0;
