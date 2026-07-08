@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import ProjectCard from '../../components/ProjectCard.astro';
 import { db } from '../../lib/db';
-import type { Project, Post } from '../../lib/db';
+import type { Project } from '../../lib/db';
 
 const [projectsRes, postCountRes] = await Promise.all([
   db
@@ -20,25 +20,22 @@ const postCountMap: Record<string, number> = {};
   if (p.project) postCountMap[p.project] = (postCountMap[p.project] ?? 0) + 1;
 });
 
-const byStatus = {
-  active: projects.filter((p) => p.status === 'active'),
-  completed: projects.filter((p) => p.status === 'completed'),
-  archived: projects.filter((p) => p.status === 'archived'),
-};
+const sections = [
+  { label: 'Ativos', items: projects.filter((p) => p.status === 'active') },
+  { label: 'Concluídos', items: projects.filter((p) => p.status === 'completed') },
+  { label: 'Arquivados', items: projects.filter((p) => p.status === 'archived') },
+];
 ---
 
-<Base title="projects — ~/blog">
-  <div style="max-width: 72rem; margin: 0 auto; padding: 5rem 1.5rem 8rem;">
-    <div style="margin-bottom: 3rem;">
-      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.5rem;">❯ ls projects/</p>
-      <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text);"># projects</h1>
-    </div>
+<Base title="Projects — valb">
+  <div class="mx-auto max-w-5xl px-6 py-16">
+    <h1 class="mb-10 text-2xl font-semibold">Projects</h1>
 
-    {byStatus.active.length > 0 && (
-      <section style="margin-bottom: 3rem;">
-        <p style="font-size: 0.75rem; color: var(--accent); margin-bottom: 1rem;">— active</p>
-        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
-          {byStatus.active.map((p, i) => (
+    {sections.map((section) => section.items.length > 0 && (
+      <section class="mb-12">
+        <p class="mb-4 text-sm font-medium text-muted-foreground">{section.label}</p>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {section.items.map((p, i) => (
             <ProjectCard
               title={p.title}
               description={p.description}
@@ -54,54 +51,10 @@ const byStatus = {
           ))}
         </div>
       </section>
-    )}
-
-    {byStatus.completed.length > 0 && (
-      <section style="margin-bottom: 3rem;">
-        <p style="font-size: 0.75rem; color: var(--muted); margin-bottom: 1rem;">— completed</p>
-        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
-          {byStatus.completed.map((p, i) => (
-            <ProjectCard
-              title={p.title}
-              description={p.description}
-              date={new Date(p.date)}
-              slug={p.slug}
-              tags={p.tags}
-              status={p.status}
-              repo={p.repo ?? undefined}
-              url={p.url ?? undefined}
-              postCount={postCountMap[p.slug] ?? 0}
-              delay={i * 80}
-            />
-          ))}
-        </div>
-      </section>
-    )}
-
-    {byStatus.archived.length > 0 && (
-      <section>
-        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 1rem;">— archived</p>
-        <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
-          {byStatus.archived.map((p, i) => (
-            <ProjectCard
-              title={p.title}
-              description={p.description}
-              date={new Date(p.date)}
-              slug={p.slug}
-              tags={p.tags}
-              status={p.status}
-              repo={p.repo ?? undefined}
-              url={p.url ?? undefined}
-              postCount={postCountMap[p.slug] ?? 0}
-              delay={i * 80}
-            />
-          ))}
-        </div>
-      </section>
-    )}
+    ))}
 
     {projects.length === 0 && (
-      <p style="color: var(--subtle); font-size: 0.875rem;">nenhum projeto ainda.</p>
+      <p class="text-sm text-muted-foreground">nenhum projeto ainda.</p>
     )}
   </div>
 </Base>

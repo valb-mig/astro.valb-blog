@@ -1,6 +1,11 @@
 ---
 import Admin from '../../../layouts/Admin.astro';
 import { db } from '../../../lib/db';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DeleteButton } from '@/components/DeleteButton';
+import { Plus } from 'lucide-react';
 
 const { data: posts } = await db
   .from('posts')
@@ -9,103 +14,66 @@ const { data: posts } = await db
 ---
 
 <Admin title="Posts">
-  <div>
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
-      <div>
-        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ ls -la blog/</p>
-        <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text);"># posts</h1>
-      </div>
-      <a
-        href="/admin/posts/new"
-        style="font-family: inherit; font-size: 0.8125rem; font-weight: 600; background: var(--accent); color: var(--bg); padding: 0.5rem 1rem; text-decoration: none; transition: opacity 0.2s;"
-        onmouseover="this.style.opacity='0.85'"
-        onmouseout="this.style.opacity='1'"
-      >
-        + novo post
+  <div class="mb-8 flex items-center justify-between">
+    <h1 class="text-xl font-semibold">Posts</h1>
+    <Button asChild>
+      <a href="/admin/posts/new">
+        <Plus />
+        novo post
       </a>
-    </div>
-
-    {!posts?.length ? (
-      <p style="color: var(--subtle); font-size: 0.875rem;">nenhum post ainda. <a href="/admin/posts/new" style="color: var(--accent);">criar primeiro →</a></p>
-    ) : (
-      <div style="border: 1px solid var(--border); overflow: hidden;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
-          <thead>
-            <tr style="border-bottom: 1px solid var(--border); background: var(--surface);">
-              <th style="text-align: left; padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500;">título</th>
-              <th style="text-align: left; padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500; white-space: nowrap;">data</th>
-              <th style="text-align: left; padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500;">status</th>
-              <th style="padding: 0.75rem 1rem; color: var(--subtle); font-weight: 500; text-align: right;">ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(posts ?? []).map((post) => (
-              <tr class="post-row">
-                <td style="padding: 0.875rem 1rem;">
-                  <a href={`/admin/posts/${post.id}`} class="post-title-link">{post.title}</a>
-                  <p style="font-size: 0.7rem; color: var(--subtle); margin-top: 0.2rem;">{post.slug}</p>
-                </td>
-                <td style="padding: 0.875rem 1rem; color: var(--muted); white-space: nowrap; font-size: 0.75rem;">
-                  {new Date(post.date).toLocaleDateString('pt-BR')}
-                </td>
-                <td style="padding: 0.875rem 1rem;">
-                  <span class={post.draft ? 'status-badge draft' : 'status-badge live'}>
-                    {post.draft ? 'draft' : 'live'}
-                  </span>
-                </td>
-                <td style="padding: 0.875rem 1rem; text-align: right;">
-                  <div style="display: flex; gap: 1rem; justify-content: flex-end; align-items: center;">
-                    <a href={`/blog/${post.slug}`} target="_blank" class="action-link subtle">ver ↗</a>
-                    <a href={`/admin/posts/${post.id}`} class="action-link">editar</a>
-                    <button class="delete-btn" data-id={post.id} data-title={post.title}>deletar</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
+    </Button>
   </div>
 
+  {!posts?.length ? (
+    <p class="text-sm text-muted-foreground">
+      nenhum post ainda. <a href="/admin/posts/new" class="text-foreground underline">criar primeiro →</a>
+    </p>
+  ) : (
+    <div class="rounded-lg border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>título</TableHead>
+            <TableHead>data</TableHead>
+            <TableHead>status</TableHead>
+            <TableHead className="text-right">ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(posts ?? []).map((post) => (
+            <TableRow data-id={post.id}>
+              <TableCell>
+                <a href={`/admin/posts/${post.id}`} class="font-medium hover:underline">{post.title}</a>
+                <p class="text-xs text-muted-foreground">{post.slug}</p>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {new Date(post.date).toLocaleDateString('pt-BR')}
+              </TableCell>
+              <TableCell>
+                <Badge variant={post.draft ? 'outline' : 'default'}>{post.draft ? 'draft' : 'live'}</Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href={`/blog/${post.slug}`} target="_blank">ver ↗</a>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href={`/admin/posts/${post.id}`}>editar</a>
+                  </Button>
+                  <DeleteButton id={post.id} title={post.title} resource="posts" client:load />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )}
+
   <script>
-    document.querySelectorAll('.delete-btn').forEach((el) => {
-      const btn = el as HTMLButtonElement;
-      btn.addEventListener('click', async () => {
-        if (!confirm('Deletar "' + btn.dataset.title + '"?')) return;
-        const res = await fetch('/api/posts/' + btn.dataset.id, { method: 'DELETE' });
-        if (res.ok) btn.closest('tr')?.remove();
-        else alert('Erro ao deletar post');
-      });
+    document.addEventListener('row-deleted', (e) => {
+      const { id } = (e as CustomEvent).detail;
+      document.querySelector(`tr[data-id="${id}"]`)?.remove();
     });
   </script>
 </Admin>
-
-<style>
-.post-row { border-bottom: 1px solid var(--border); transition: background 0.15s; }
-.post-row:hover { background: var(--surface); }
-
-.post-title-link {
-  color: var(--text); font-weight: 500; text-decoration: none; transition: color 0.2s;
-}
-.post-title-link:hover { color: var(--accent); }
-
-.status-badge {
-  font-size: 0.65rem; padding: 0.15em 0.55em; border-radius: 2px; border: 1px solid;
-}
-.status-badge.live { color: var(--accent); border-color: var(--accent); }
-.status-badge.draft { color: var(--subtle); border-color: var(--subtle); }
-
-.action-link {
-  font-size: 0.75rem; color: var(--muted); text-decoration: none; transition: color 0.2s;
-}
-.action-link:hover { color: var(--accent); }
-.action-link.subtle { color: var(--subtle); }
-.action-link.subtle:hover { color: var(--muted); }
-
-.delete-btn {
-  font-family: inherit; font-size: 0.75rem; color: var(--subtle);
-  background: none; border: none; cursor: pointer; transition: color 0.2s;
-}
-.delete-btn:hover { color: #f87171; }
-</style>

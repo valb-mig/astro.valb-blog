@@ -1,6 +1,10 @@
 ---
 import Admin from '../../../layouts/Admin.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { DeleteButton } from '@/components/DeleteButton';
 import { db } from '../../../lib/db';
 import type { Project } from '../../../lib/db';
 
@@ -12,107 +16,82 @@ if (error || !project) return Astro.redirect('/admin/projects');
 const p = project as Project;
 const dateStr = new Date(p.date).toISOString().split('T')[0];
 const tagsStr = (p.tags ?? []).join(', ');
+
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
 ---
 
 <Admin title={`Editar: ${p.title}`}>
-  <div>
-    <div style="margin-bottom: 2rem;">
-      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">❯ vim projects/{p.slug}/README.md</p>
-      <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text);"># editar projeto</h1>
+  <h1 class="mb-8 text-xl font-semibold">Editar projeto</h1>
+
+  <form id="proj-form" class="flex flex-col gap-6">
+    <input type="hidden" id="proj-id" value={p.id} />
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-title">título *</Label>
+        <Input id="f-title" type="text" required value={p.title} />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-slug">slug *</Label>
+        <Input id="f-slug" type="text" required value={p.slug} />
+      </div>
     </div>
 
-    <form id="proj-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
-      <input type="hidden" id="proj-id" value={p.id} />
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-description">descrição *</Label>
+      <Input id="f-description" type="text" required value={p.description} />
+    </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-        <div>
-          <label class="field-label">título *</label>
-          <input id="f-title" type="text" required value={p.title} class="field-input" />
-        </div>
-        <div>
-          <label class="field-label">slug *</label>
-          <input id="f-slug" type="text" required value={p.slug} class="field-input" />
-        </div>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-date">data *</Label>
+        <Input id="f-date" type="date" required value={dateStr} />
       </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-status">status</Label>
+        <select id="f-status" class={selectClass}>
+          <option value="active" selected={p.status === 'active'}>active</option>
+          <option value="completed" selected={p.status === 'completed'}>completed</option>
+          <option value="archived" selected={p.status === 'archived'}>archived</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-repo">repo (URL)</Label>
+        <Input id="f-repo" type="url" value={p.repo ?? ''} />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-url">site (URL)</Label>
+        <Input id="f-url" type="url" value={p.url ?? ''} />
+      </div>
+    </div>
 
-      <div>
-        <label class="field-label">descrição *</label>
-        <input id="f-description" type="text" required value={p.description} class="field-input" />
-      </div>
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-tags">tags (vírgula)</Label>
+      <Input id="f-tags" type="text" value={tagsStr} />
+    </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
-        <div>
-          <label class="field-label">data *</label>
-          <input id="f-date" type="date" required value={dateStr} class="field-input" />
-        </div>
-        <div>
-          <label class="field-label">status</label>
-          <select id="f-status" class="field-input">
-            <option value="active" selected={p.status === 'active'}>active</option>
-            <option value="completed" selected={p.status === 'completed'}>completed</option>
-            <option value="archived" selected={p.status === 'archived'}>archived</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label">repo (URL)</label>
-          <input id="f-repo" type="url" value={p.repo ?? ''} class="field-input" />
-        </div>
-        <div>
-          <label class="field-label">site (URL)</label>
-          <input id="f-url" type="url" value={p.url ?? ''} class="field-input" />
-        </div>
-      </div>
+    <label class="flex items-center gap-2 text-sm text-muted-foreground">
+      <input id="f-draft" type="checkbox" checked={p.draft} class="accent-primary" />
+      draft
+    </label>
 
-      <div>
-        <label class="field-label">tags (vírgula)</label>
-        <input id="f-tags" type="text" value={tagsStr} class="field-input" />
-      </div>
+    <div class="flex flex-col gap-1.5">
+      <Label>descrição longa (markdown)</Label>
+      <MarkdownEditor name="content" initialValue={p.content} />
+    </div>
 
-      <div>
-        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--muted); cursor: pointer;">
-          <input id="f-draft" type="checkbox" checked={p.draft} style="accent-color: var(--accent);" />
-          draft
-        </label>
+    <div class="flex flex-wrap items-center gap-4 pt-2">
+      <Button type="submit" id="save-btn">salvar alterações</Button>
+      <a href={`/projects/${p.slug}`} target="_blank" class="text-sm text-muted-foreground hover:text-foreground">ver projeto ↗</a>
+      <a href="/admin/projects" class="text-sm text-muted-foreground hover:text-foreground">voltar</a>
+      <div class="ml-auto">
+        <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/admin/projects" client:load />
       </div>
-
-      <div>
-        <label class="field-label" style="margin-bottom: 0.5rem;">descrição longa (markdown)</label>
-        <MarkdownEditor name="content" initialValue={p.content} />
-      </div>
-
-      <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; padding-top: 0.5rem;">
-        <button type="submit" id="save-btn" style="
-          font-family: inherit; font-size: 0.875rem; font-weight: 600;
-          background: var(--accent); color: var(--bg);
-          border: none; padding: 0.65rem 1.5rem; cursor: pointer;
-        ">❯ salvar alterações</button>
-        <a href={`/projects/${p.slug}`} target="_blank" style="font-size: 0.8125rem; color: var(--muted);">ver projeto ↗</a>
-        <a href="/admin/projects" style="font-size: 0.8125rem; color: var(--subtle);">voltar</a>
-        <button id="delete-btn" type="button" style="
-          margin-left: auto; font-family: inherit; font-size: 0.8125rem;
-          color: var(--subtle); background: none; border: none; cursor: pointer; transition: color 0.2s;
-        "
-          onmouseover="this.style.color='#f87171'"
-          onmouseout="this.style.color='var(--subtle)'"
-        >deletar projeto</button>
-        <p id="save-error" style="font-size: 0.8125rem; color: #f87171; display: none; width: 100%;"></p>
-      </div>
-    </form>
-  </div>
+      <p id="save-error" class="hidden w-full text-sm text-destructive"></p>
+    </div>
+  </form>
 </Admin>
-
-<style>
-.field-label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.4rem; }
-.field-input {
-  width: 100%; background: var(--surface); border: 1px solid var(--border);
-  color: var(--text); font-family: inherit; font-size: 0.875rem;
-  padding: 0.55rem 0.75rem; outline: none; transition: border-color 0.2s;
-}
-.field-input:focus { border-color: var(--accent); }
-@media (max-width: 600px) {
-  div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
-}
-</style>
 
 <script>
   const projId = (document.getElementById('proj-id') as HTMLInputElement).value;
@@ -122,9 +101,9 @@ const tagsStr = (p.tags ?? []).join(', ');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    saveError.style.display = 'none';
+    saveError.classList.add('hidden');
     saveBtn.disabled = true;
-    saveBtn.textContent = '❯ salvando...';
+    saveBtn.textContent = 'salvando...';
 
     const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
     const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
@@ -150,25 +129,17 @@ const tagsStr = (p.tags ?? []).join(', ');
     });
 
     if (res.ok) {
-      saveBtn.textContent = '✓ salvo!';
+      saveBtn.textContent = 'salvo!';
       setTimeout(() => {
         saveBtn.disabled = false;
-        saveBtn.textContent = '❯ salvar alterações';
+        saveBtn.textContent = 'salvar alterações';
       }, 1500);
     } else {
       const { error } = await res.json();
       saveError.textContent = error ?? 'Erro ao salvar';
-      saveError.style.display = 'block';
+      saveError.classList.remove('hidden');
       saveBtn.disabled = false;
-      saveBtn.textContent = '❯ salvar alterações';
+      saveBtn.textContent = 'salvar alterações';
     }
-  });
-
-  document.getElementById('delete-btn')?.addEventListener('click', async () => {
-    const title = (document.getElementById('f-title') as HTMLInputElement).value;
-    if (!confirm(`Deletar "${title}"?`)) return;
-    const res = await fetch(`/api/projects/${projId}`, { method: 'DELETE' });
-    if (res.ok) window.location.href = '/admin/projects';
-    else alert('Erro ao deletar projeto');
   });
 </script>

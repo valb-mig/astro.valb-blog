@@ -1,257 +1,58 @@
 ---
+import { Button } from '@/components/ui/button';
+import { Rss, Settings, Search } from 'lucide-react';
+
 const navItems = [
-  { label: 'blog', href: '/blog', icon: 'md' },
-  { label: 'projects', href: '/projects', icon: 'folder' },
-  { label: 'about', href: '/about', icon: 'txt' },
+  { label: 'Blog', href: '/blog' },
+  { label: 'Projects', href: '/projects' },
+  { label: 'About', href: '/about' },
 ];
 
 const current = Astro.url.pathname;
-
-const FILE_ICONS: Record<string, string> = {
-  md: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
-  folder: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
-  txt: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>`,
-};
 ---
 
-<header class="site-header">
-  <div class="header-inner">
+<header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
+  <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
+    <a href="/" class="text-sm font-semibold">valb</a>
 
-    <!-- Logo -->
-    <a href="/" class="header-logo">
-      <span class="logo-tilde">~/</span>
-      <span class="logo-name">valb</span>
-      <span class="cursor-blink logo-cursor">▋</span>
-    </a>
-
-    <!-- VSCode-style tabs -->
-    <nav class="header-tabs" aria-label="Navegação principal">
-      {navItems.map(({ label, href, icon }) => {
+    <nav class="flex items-center gap-5 text-sm" aria-label="Navegação principal">
+      {navItems.map(({ label, href }) => {
         const isActive = current === href || current.startsWith(href + '/');
         return (
-          <a href={href} class={`header-tab ${isActive ? 'active' : ''}`}>
-            <span class="tab-icon" set:html={FILE_ICONS[icon]} />
-            <span class="tab-label">{label}</span>
-            {isActive && <span class="tab-dot" aria-hidden="true" />}
+          <a
+            href={href}
+            class={`transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            {label}
           </a>
         );
       })}
     </nav>
 
-    <!-- Right side actions -->
-    <div class="header-actions">
-      <!-- Search / command palette trigger -->
-      <button
-        id="header-search-btn"
-        class="header-search-btn"
-        aria-label="Abrir busca (Ctrl+K)"
-        title="Buscar (Ctrl+K)"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <span class="search-shortcut">Ctrl K</span>
-      </button>
+    <div class="flex items-center gap-1.5">
+      <Button id="header-search-btn" variant="outline" size="sm">
+        <Search />
+        <span class="hidden sm:inline">Buscar</span>
+        <kbd class="hidden rounded border border-border px-1 text-[10px] text-muted-foreground sm:inline">Ctrl K</kbd>
+      </Button>
 
-      <!-- RSS -->
-      <a href="/rss.xml" class="header-icon-btn" title="RSS Feed" aria-label="RSS Feed">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
-      </a>
+      <Button variant="ghost" size="icon" asChild>
+        <a href="/rss.xml" title="RSS Feed" aria-label="RSS Feed">
+          <Rss />
+        </a>
+      </Button>
 
-      <!-- Admin -->
-      <a href="/admin" class="header-icon-btn header-admin" title="Admin" aria-label="Admin">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-      </a>
+      <Button variant="ghost" size="icon" asChild>
+        <a href="/admin" title="Admin" aria-label="Admin" class="opacity-50 hover:opacity-100">
+          <Settings />
+        </a>
+      </Button>
     </div>
   </div>
-
-  <!-- Breadcrumb bar (shows on non-root pages) -->
-  {current !== '/' && (
-    <div class="breadcrumb-bar">
-      <div class="breadcrumb-inner">
-        <a href="/" class="bc-segment">~/valb</a>
-        {current.split('/').filter(Boolean).map((seg, i, arr) => {
-          const href = '/' + arr.slice(0, i + 1).join('/');
-          return (
-            <>
-              <span class="bc-sep">›</span>
-              <a href={href} class={`bc-segment ${i === arr.length - 1 ? 'bc-active' : ''}`}>
-                {seg}
-              </a>
-            </>
-          );
-        })}
-      </div>
-    </div>
-  )}
 </header>
 
 <script>
   document.getElementById('header-search-btn')?.addEventListener('click', () => {
-    (window as any).__cmdOpen?.();
+    document.dispatchEvent(new CustomEvent('open-command-menu'));
   });
 </script>
-
-<style>
-.site-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(9, 9, 11, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-}
-
-.header-inner {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-
-/* Logo */
-.header-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  text-decoration: none;
-  margin-right: 1rem;
-  flex-shrink: 0;
-}
-.logo-tilde { color: var(--accent); }
-.logo-name { color: var(--text); }
-.logo-cursor { color: var(--accent); font-size: 0.875rem; }
-
-/* Tabs */
-.header-tabs {
-  display: flex;
-  align-items: stretch;
-  height: 100%;
-  flex: 1;
-  gap: 0;
-}
-
-.header-tab {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0 1rem;
-  height: 100%;
-  font-size: 0.75rem;
-  color: var(--subtle);
-  text-decoration: none;
-  border-right: 1px solid var(--border);
-  position: relative;
-  transition: color 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-.header-tab:first-child { border-left: 1px solid var(--border); }
-.header-tab:hover { color: var(--muted); background: rgba(255,255,255,0.03); }
-
-.header-tab.active {
-  color: var(--text);
-  background: rgba(52, 211, 153, 0.04);
-  border-bottom: 2px solid var(--accent);
-}
-.header-tab.active .tab-icon { color: var(--accent); }
-
-.tab-icon {
-  display: flex;
-  align-items: center;
-  color: var(--subtle);
-  transition: color 0.15s;
-}
-.tab-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  margin-left: 0.1rem;
-}
-
-/* Actions */
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-left: 1rem;
-}
-
-.header-search-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.3rem 0.6rem;
-  color: var(--subtle);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
-.header-search-btn:hover {
-  color: var(--text);
-  border-color: var(--subtle);
-}
-.search-shortcut {
-  color: var(--subtle);
-  font-size: 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0.1rem 0.3rem;
-}
-
-.header-icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 4px;
-  color: var(--subtle);
-  text-decoration: none;
-  transition: color 0.15s, background 0.15s;
-}
-.header-icon-btn:hover { color: var(--text); background: var(--surface); }
-.header-admin { opacity: 0.4; }
-.header-admin:hover { opacity: 1; }
-
-/* Breadcrumb */
-.breadcrumb-bar {
-  border-top: 1px solid var(--border);
-  background: rgba(0,0,0,0.2);
-  height: 1.75rem;
-  display: flex;
-  align-items: center;
-}
-.breadcrumb-inner {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.7rem;
-}
-.bc-segment {
-  color: var(--subtle);
-  text-decoration: none;
-  transition: color 0.15s;
-}
-.bc-segment:hover { color: var(--text); }
-.bc-active { color: var(--muted); }
-.bc-sep { color: var(--border); }
-
-@media (max-width: 640px) {
-  .search-shortcut { display: none; }
-  .header-tab { padding: 0 0.6rem; }
-  .tab-label { display: none; }
-}
-</style>

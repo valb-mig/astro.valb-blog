@@ -1,8 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
-import Tag from '../../components/Tag.astro';
+import { Badge } from '@/components/ui/badge';
 import { db } from '../../lib/db';
-import type { Post, Project } from '../../lib/db';
+import type { Post } from '../../lib/db';
 import { marked } from 'marked';
 
 const { slug } = Astro.params;
@@ -38,65 +38,44 @@ if (p.project) {
 ---
 
 <Base title={p.title} description={p.description} og={{ type: 'article' }}>
-  <article style="max-width: 72rem; margin: 0 auto; padding: 6rem 1.5rem 8rem;">
+  <article class="mx-auto max-w-2xl px-6 py-16">
 
-    <!-- Breadcrumb -->
-    <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 2rem;">
-      <a href="/" style="color: var(--accent);">~</a>
+    <p class="mb-8 text-sm text-muted-foreground">
+      <a href="/" class="hover:text-foreground">Home</a>
       <span> / </span>
-      <a href="/blog" style="color: var(--muted);">blog</a>
+      <a href="/blog" class="hover:text-foreground">Blog</a>
       <span> / </span>
-      <span style="color: var(--muted);">{p.slug}</span>
+      <span>{p.slug}</span>
     </p>
 
-    <!-- Header -->
-    <header style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 2rem;">
-      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.75rem;">
-        ❯ cat {p.slug}.md
-      </p>
-      <h1 style="font-size: 2rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; line-height: 1.3;">
-        # {p.title}
-      </h1>
-      <p style="color: var(--muted); margin-bottom: 1.25rem;">{p.description}</p>
+    <header class="mb-10 border-b border-border pb-8">
+      <h1 class="mb-3 text-3xl font-semibold leading-tight">{p.title}</h1>
+      <p class="mb-5 text-muted-foreground">{p.description}</p>
 
-      <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; font-size: 0.75rem; color: var(--subtle);">
+      <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
         <span>{dateStr}</span>
         <span>{p.reading_time} min de leitura</span>
-        {p.newsletter && (
-          <span style="color: var(--accent); border: 1px solid var(--accent); padding: 0.1em 0.5em; border-radius: 2px;">
-            #newsletter
-          </span>
-        )}
+        {p.newsletter && <Badge variant="secondary">newsletter</Badge>}
         {p.project && projectTitle && (
-          <a
-            href={`/projects/${p.project}`}
-            style="display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); border: 1px solid var(--border); padding: 0.15em 0.6em; border-radius: 2px; transition: border-color 0.2s, color 0.2s;"
-            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
-            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';"
-          >
-            ⬡ {projectTitle}
+          <a href={`/projects/${p.project}`} class="transition-colors hover:text-foreground">
+            <Badge variant="outline">{projectTitle}</Badge>
           </a>
         )}
       </div>
 
       {(p.tags ?? []).length > 0 && (
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
-          {(p.tags ?? []).map((tag: string) => <Tag tag={tag} href={`/blog?tag=${tag}`} />)}
+        <div class="mt-4 flex flex-wrap gap-2">
+          {(p.tags ?? []).map((tag: string) => (
+            <a href={`/blog?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
+          ))}
         </div>
       )}
     </header>
 
-    <!-- Content -->
-    <div class="prose" set:html={contentHtml} />
+    <div class="prose prose-invert prose-sm max-w-none" set:html={contentHtml} />
 
-    <!-- Back link -->
-    <div style="margin-top: 4rem; border-top: 1px solid var(--border); padding-top: 2rem;">
-      <a
-        href="/blog"
-        style="font-size: 0.875rem; color: var(--muted); transition: color 0.2s;"
-        onmouseover="this.style.color='var(--accent)';"
-        onmouseout="this.style.color='var(--muted)';"
-      >
+    <div class="mt-16 border-t border-border pt-8">
+      <a href="/blog" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
         ← back to blog
       </a>
     </div>

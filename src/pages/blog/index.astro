@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
+import { Badge } from '@/components/ui/badge';
 import { db } from '../../lib/db';
 import type { Post } from '../../lib/db';
 
@@ -20,57 +21,43 @@ const filtered = activeTag
   : posts;
 ---
 
-<Base title="blog — ~/blog">
-  <div class="blog-layout">
+<Base title="Blog — valb">
+  <div class="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 py-16 md:grid-cols-[180px_1fr]">
 
     <!-- Sidebar: tags -->
-    <aside class="blog-sidebar">
-      <div class="sidebar-inner">
-        <p style="font-size: 0.7rem; color: var(--subtle); margin-bottom: 0.75rem;">❯ ls tags/</p>
-        <nav class="tag-nav">
-          <a href="/blog" class={`sidebar-tag ${!activeTag ? 'active' : ''}`}>all</a>
-          {allTags.map((tag) => (
-            <a
-              href={`/blog?tag=${tag}`}
-              class={`sidebar-tag ${activeTag === tag ? 'active' : ''}`}
-            >
-              #{tag}
-            </a>
-          ))}
-        </nav>
+    <aside class="hidden md:block">
+      <div class="sticky top-24 flex flex-col gap-1">
+        <a href="/blog">
+          <Badge variant={!activeTag ? 'default' : 'outline'} className="mb-1">all</Badge>
+        </a>
+        {allTags.map((tag) => (
+          <a href={`/blog?tag=${tag}`}>
+            <Badge variant={activeTag === tag ? 'default' : 'outline'} className="mb-1">{tag}</Badge>
+          </a>
+        ))}
       </div>
     </aside>
 
     <!-- Main content -->
-    <main class="blog-main">
-
-      <!-- Header -->
-      <div style="margin-bottom: 2rem;">
-        <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.5rem;">
-          ❯ ls -t blog/ {activeTag ? `--tag=${activeTag}` : ''}
-        </p>
-        <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
-          <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--text);"># blog</h1>
-        </div>
-        <p style="font-size: 0.8125rem; color: var(--subtle); margin-top: 0.4rem;">
+    <main>
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold">Blog</h1>
+        <p class="mt-1 text-sm text-muted-foreground">
           {filtered.length} post{filtered.length !== 1 ? 's' : ''}
-          {activeTag && ` · filtrando #${activeTag}`}
+          {activeTag && ` · filtrando "${activeTag}"`}
         </p>
       </div>
 
       <!-- Mobile tag row -->
-      <div class="mobile-tags">
-        <a href="/blog" class={`sidebar-tag ${!activeTag ? 'active' : ''}`}>all</a>
+      <div class="mb-6 flex flex-wrap gap-2 md:hidden">
+        <a href="/blog"><Badge variant={!activeTag ? 'default' : 'outline'}>all</Badge></a>
         {allTags.map((tag) => (
-          <a href={`/blog?tag=${tag}`} class={`sidebar-tag ${activeTag === tag ? 'active' : ''}`}>
-            #{tag}
-          </a>
+          <a href={`/blog?tag=${tag}`}><Badge variant={activeTag === tag ? 'default' : 'outline'}>{tag}</Badge></a>
         ))}
       </div>
 
-      <!-- Posts grid -->
       {filtered.length > 0 ? (
-        <div class="posts-grid">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {filtered.map((post, i) => (
             <PostCard
               id={post.id}
@@ -87,81 +74,10 @@ const filtered = activeTag
           ))}
         </div>
       ) : (
-        <p style="color: var(--subtle); font-size: 0.875rem; margin-top: 2rem;">
-          nenhum post encontrado{activeTag ? ` para #${activeTag}` : ''}.
+        <p class="mt-8 text-sm text-muted-foreground">
+          nenhum post encontrado{activeTag ? ` para "${activeTag}"` : ''}.
         </p>
       )}
     </main>
   </div>
 </Base>
-
-<style>
-.blog-layout {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-  min-height: calc(100vh - 3.5rem);
-}
-
-.blog-sidebar {
-  border-right: 1px solid var(--border);
-  padding-right: 1.5rem;
-}
-
-.sidebar-inner {
-  position: sticky;
-  top: calc(3.5rem + 2rem);
-  padding-top: 5rem;
-  padding-bottom: 3rem;
-}
-
-.tag-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.sidebar-tag {
-  font-size: 0.8125rem;
-  color: var(--muted);
-  text-decoration: none;
-  padding: 0.3rem 0.5rem;
-  border-radius: 2px;
-  transition: color 0.2s, background 0.2s;
-  border: 1px solid transparent;
-}
-.sidebar-tag:hover { color: var(--text); background: var(--surface); }
-.sidebar-tag.active {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--surface);
-}
-
-.blog-main {
-  padding: 5rem 0 8rem 2rem;
-}
-
-.mobile-tags {
-  display: none;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 1.5rem;
-}
-
-.posts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-}
-
-@media (max-width: 900px) {
-  .blog-layout {
-    grid-template-columns: 1fr;
-  }
-  .blog-sidebar { display: none; }
-  .mobile-tags { display: flex; }
-  .blog-main { padding: 2rem 0 6rem; }
-}
-</style>

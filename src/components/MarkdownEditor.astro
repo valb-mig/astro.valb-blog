@@ -10,15 +10,17 @@ const { initialValue = '', name = 'content' } = Astro.props;
   <div class="md-editor-tabs">
     <button type="button" class="md-tab active" data-tab="edit">edit</button>
     <button type="button" class="md-tab" data-tab="preview">preview</button>
-    <span class="md-editor-hint">split view em desktop</span>
   </div>
 
   <div class="md-editor-panels">
     <div id="md-editor-panel" class="md-panel">
+      <button type="button" class="md-maximize-btn" data-target="edit" title="maximizar">⛶</button>
       <div id="md-cm-mount"></div>
     </div>
-    <div id="md-preview-panel" class="md-panel prose md-preview">
-      <p style="color: var(--subtle); font-size: 0.8125rem;">loading preview...</p>
+    <div class="md-resizer"></div>
+    <div id="md-preview-panel" class="md-panel prose prose-invert prose-sm md-preview">
+      <button type="button" class="md-maximize-btn" data-target="preview" title="maximizar">⛶</button>
+      <p style="color: var(--muted-foreground); font-size: 0.8125rem;">loading preview...</p>
     </div>
   </div>
 
@@ -29,23 +31,23 @@ const { initialValue = '', name = 'content' } = Astro.props;
 <style>
 .md-editor-root {
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
 .md-editor-tabs {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--card);
   padding: 0 0.75rem;
 }
 
 .md-tab {
   font-family: inherit;
   font-size: 0.75rem;
-  color: var(--subtle);
+  color: var(--muted-foreground);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -53,31 +55,73 @@ const { initialValue = '', name = 'content' } = Astro.props;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s;
 }
-.md-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-.md-editor-hint {
-  margin-left: auto;
-  font-size: 0.65rem;
-  color: var(--subtle);
-}
+.md-tab.active { color: var(--foreground); border-bottom-color: var(--foreground); }
 
 .md-editor-panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 6px 1fr;
   min-height: 480px;
 }
 
 .md-panel {
   overflow: auto;
+  position: relative;
 }
 
-.md-panel:first-child {
-  border-right: 1px solid var(--border);
+.md-resizer {
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+}
+.md-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+}
+.md-resizer:hover,
+.md-resizer.dragging {
+  background: var(--foreground);
+}
+
+.md-maximize-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 4px);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s, color 0.2s;
+}
+.md-maximize-btn:hover {
+  opacity: 1;
+  color: var(--foreground);
+}
+
+.md-editor-panels.md-max-edit .md-resizer,
+.md-editor-panels.md-max-edit #md-preview-panel,
+.md-editor-panels.md-max-preview .md-resizer,
+.md-editor-panels.md-max-preview #md-editor-panel {
+  display: none;
+}
+.md-editor-panels.md-max-edit,
+.md-editor-panels.md-max-preview {
+  grid-template-columns: 1fr !important;
 }
 
 .md-preview {
   padding: 1.25rem 1.5rem;
-  background: var(--bg);
+  background: var(--background);
   max-width: 100%;
 }
 
@@ -96,11 +140,12 @@ const { initialValue = '', name = 'content' } = Astro.props;
 :global(.cm-scroller) { overflow: auto; }
 
 @media (max-width: 768px) {
+  .md-editor-tabs { display: flex; }
   .md-editor-panels {
     grid-template-columns: 1fr;
   }
-  .md-panel:first-child { border-right: none; }
-  .md-editor-hint { display: none; }
+  .md-resizer,
+  .md-maximize-btn { display: none; }
 
   /* Mobile: tabs control visibility */
   .md-editor-panels[data-tab="edit"] #md-preview-panel { display: none; }
@@ -148,6 +193,66 @@ const { initialValue = '', name = 'content' } = Astro.props;
       btn.classList.add('active');
       if (window.innerWidth <= 768) {
         panelsEl.setAttribute('data-tab', btn.dataset.tab ?? 'edit');
+      }
+    });
+  });
+
+  const isDesktop = () => window.innerWidth > 768;
+
+  function syncPanelsForViewport() {
+    if (!isDesktop()) {
+      panelsEl.classList.remove('md-max-edit', 'md-max-preview');
+      (panelsEl as HTMLElement).style.gridTemplateColumns = '';
+    }
+  }
+  syncPanelsForViewport();
+  window.addEventListener('resize', syncPanelsForViewport);
+
+  // Desktop: resizable panels
+  const resizer = document.querySelector<HTMLElement>('.md-resizer');
+  let lastColumns = '1fr 6px 1fr';
+
+  if (resizer) {
+    resizer.addEventListener('mousedown', (e) => {
+      if (!isDesktop()) return;
+      e.preventDefault();
+      resizer.classList.add('dragging');
+      const panelsRect = (panelsEl as HTMLElement).getBoundingClientRect();
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const offsetX = moveEvent.clientX - panelsRect.left;
+        const percent = Math.min(80, Math.max(20, (offsetX / panelsRect.width) * 100));
+        lastColumns = `${percent}% 6px ${100 - percent}%`;
+        (panelsEl as HTMLElement).style.gridTemplateColumns = lastColumns;
+      };
+
+      const onMouseUp = () => {
+        resizer.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  // Desktop: maximize/restore panel
+  document.querySelectorAll<HTMLButtonElement>('.md-maximize-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!isDesktop()) return;
+      const target = btn.dataset.target;
+      const maxClass = target === 'edit' ? 'md-max-edit' : 'md-max-preview';
+      const isMaximized = panelsEl.classList.contains(maxClass);
+
+      panelsEl.classList.remove('md-max-edit', 'md-max-preview');
+      (panelsEl as HTMLElement).style.gridTemplateColumns = '';
+
+      if (!isMaximized) {
+        panelsEl.classList.add(maxClass);
+        btn.textContent = '⛶';
+      } else {
+        (panelsEl as HTMLElement).style.gridTemplateColumns = lastColumns;
       }
     });
   });
