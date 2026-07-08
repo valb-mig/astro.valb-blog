@@ -58,6 +58,10 @@ async function mapGithubEvent(event: {
     }
     case 'IssuesEvent': {
       const issue = event.payload.issue;
+      if (!issue?.html_url || !issue?.title) {
+        console.warn(`Evento IssuesEvent sem url/title (repo pode ter virado privado): ${repo}#${issue?.number}`);
+        return [];
+      }
       return [
         {
           source: 'github',
@@ -73,6 +77,10 @@ async function mapGithubEvent(event: {
     }
     case 'PullRequestEvent': {
       const pr = event.payload.pull_request;
+      if (!pr?.html_url || !pr?.title) {
+        console.warn(`Evento PullRequestEvent sem url/title (repo pode ter virado privado): ${repo}#${pr?.number}`);
+        return [];
+      }
       return [
         {
           source: 'github',
@@ -88,6 +96,10 @@ async function mapGithubEvent(event: {
     }
     case 'ReleaseEvent': {
       const release = event.payload.release;
+      if (!release?.html_url || !(release?.name || release?.tag_name)) {
+        console.warn(`Evento ReleaseEvent sem url/title (repo pode ter virado privado): ${repo}`);
+        return [];
+      }
       return [
         {
           source: 'github',
