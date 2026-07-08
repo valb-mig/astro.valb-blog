@@ -9,7 +9,7 @@ interface Props {
   description: string;
   date: string;
   tags?: string[];
-  project?: string | null;
+  projects?: { slug: string; title: string }[];
   newsletter?: boolean;
   reading_time?: number;
   delay?: number;
@@ -21,7 +21,7 @@ const {
   description,
   date,
   tags = [],
-  project,
+  projects = [],
   newsletter = false,
   reading_time = 1,
   delay = 0,
@@ -41,7 +41,7 @@ const dateStr = new Date(date).toLocaleDateString('pt-BR', {
         <span>{dateStr}</span>
         <div class="flex items-center gap-1.5">
           {newsletter && <Badge variant="outline">newsletter</Badge>}
-          {project && <Badge variant="secondary">{project}</Badge>}
+          {projects.map((p) => <Badge variant="secondary">{p.title}</Badge>)}
         </div>
       </div>
 

@@ -1,9 +1,19 @@
 ---
 import Admin from '../../../layouts/Admin.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
+import { MultiSelect } from '@/components/MultiSelect';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { db } from '../../../lib/db';
+
+const { data: allPosts } = await db.from('posts').select('tags');
+const existingTags = Array.from(new Set((allPosts ?? []).flatMap((p) => p.tags ?? [])))
+  .sort()
+  .map((t) => ({ value: t, label: t }));
+
+const { data: allProjects } = await db.from('projects').select('id,title').order('title');
+const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.title }));
 ---
 
 <Admin title="Novo Post">
@@ -32,12 +42,29 @@ import { Button } from '@/components/ui/button';
         <Input id="f-date" type="date" required />
       </div>
       <div class="flex flex-col gap-1.5">
-        <Label htmlFor="f-tags">tags (vírgula)</Label>
-        <Input id="f-tags" type="text" placeholder="css, design, dev" />
+        <Label>tags</Label>
+        <input type="hidden" id="f-tags-value" value="[]" />
+        <MultiSelect
+          client:load
+          hiddenInputId="f-tags-value"
+          initialValue={[]}
+          options={existingTags}
+          creatable
+          placeholder="buscar ou criar tag..."
+          triggerLabel="tag"
+        />
       </div>
       <div class="flex flex-col gap-1.5">
-        <Label htmlFor="f-project">projeto (slug)</Label>
-        <Input id="f-project" type="text" placeholder="meu-projeto" />
+        <Label>projetos</Label>
+        <input type="hidden" id="f-projects-value" value="[]" />
+        <MultiSelect
+          client:load
+          hiddenInputId="f-projects-value"
+          initialValue={[]}
+          options={projectOptions}
+          placeholder="buscar projeto..."
+          triggerLabel="projeto"
+        />
       </div>
     </div>
 
@@ -100,18 +127,18 @@ import { Button } from '@/components/ui/button';
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
-    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
-    const projectVal = (document.getElementById('f-project') as HTMLInputElement).value.trim();
+    const tags = JSON.parse((document.getElementById('f-tags-value') as HTMLInputElement).value || '[]');
+    const projectIds = JSON.parse((document.getElementById('f-projects-value') as HTMLInputElement).value || '[]');
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
       slug: (document.getElementById('f-slug') as HTMLInputElement).value,
       description: (document.getElementById('f-description') as HTMLInputElement).value,
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
-      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
+      tags,
       draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
       newsletter: (document.getElementById('f-newsletter') as HTMLInputElement).checked,
-      project: projectVal || null,
+      projectIds,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
 

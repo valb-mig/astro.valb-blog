@@ -34,7 +34,7 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 };
 ---
 
-<Card className="fade-in h-full" style={`transition-delay: ${delay}ms`}>
+<Card className="fade-in h-full" style={{ transitionDelay: `${delay}ms` }}>
   <CardContent className="flex h-full flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
       <a href={`/projects/${slug}`} class="group min-w-0">

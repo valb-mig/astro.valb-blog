@@ -12,7 +12,11 @@ export const GET: APIRoute = async ({ params, cookies }) => {
   if (data.draft && !authed(cookies)) {
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   }
-  return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+
+  const { data: links } = await db.from('post_projects').select('project_id').eq('post_id', data.id);
+  const projectIds = (links ?? []).map((l) => l.project_id);
+
+  return new Response(JSON.stringify({ ...data, projectIds }), { headers: { 'Content-Type': 'application/json' } });
 };
 
 export const PUT: APIRoute = async ({ params, request, cookies }) => {
@@ -20,13 +24,26 @@ export const PUT: APIRoute = async ({ params, request, cookies }) => {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
   const body = await request.json();
+  const { projectIds, ...postFields } = body;
+
   const { data, error } = await db
     .from('posts')
-    .update({ ...body, reading_time: calcReadingTime(body.content ?? '') })
+    .update({ ...postFields, reading_time: calcReadingTime(postFields.content ?? '') })
     .eq('id', params.id!)
     .select()
     .single();
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+
+  if (Array.isArray(projectIds)) {
+    await db.from('post_projects').delete().eq('post_id', params.id!);
+    if (projectIds.length) {
+      const { error: linkError } = await db
+        .from('post_projects')
+        .insert(projectIds.map((project_id: string) => ({ post_id: params.id!, project_id })));
+      if (linkError) return new Response(JSON.stringify({ error: linkError.message }), { status: 500 });
+    }
+  }
+
   return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
 };
 
