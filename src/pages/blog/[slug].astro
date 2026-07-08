@@ -1,19 +1,83 @@
 ---
-import { getCollection, render } from 'astro:content';
-import Post from '../../layouts/Post.astro';
+import Base from '../../layouts/Base.astro';
+import { Badge } from '@/components/ui/badge';
+import { db } from '../../lib/db';
+import type { Post } from '../../lib/db';
+import { marked } from 'marked';
 
-export async function getStaticPaths() {
-  const posts = await getCollection('blog', ({ data }) => !data.draft);
-  return posts.map((post) => ({
-    params: { slug: post.slug },
-    props: { post },
-  }));
+const { slug } = Astro.params;
+
+const { data: post, error } = await db
+  .from('posts')
+  .select('*')
+  .eq('slug', slug!)
+  .eq('draft', false)
+  .single();
+
+if (error || !post) return Astro.redirect('/blog');
+
+const p = post as Post;
+
+const contentHtml = await marked.parse(p.content);
+
+const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+let projectTitle: string | null = null;
+if (p.project) {
+  const { data: proj } = await db
+    .from('projects')
+    .select('title')
+    .eq('slug', p.project)
+    .single();
+  projectTitle = proj?.title ?? null;
 }
-
-const { post } = Astro.props;
-const { Content } = await render(post);
 ---
 
-<Post frontmatter={post.data}>
-  <Content />
-</Post>
+<Base title={p.title} description={p.description} og={{ type: 'article' }}>
+  <article class="mx-auto max-w-2xl px-6 py-16">
+
+    <p class="mb-8 text-sm text-muted-foreground">
+      <a href="/" class="hover:text-foreground">Home</a>
+      <span> / </span>
+      <a href="/blog" class="hover:text-foreground">Blog</a>
+      <span> / </span>
+      <span>{p.slug}</span>
+    </p>
+
+    <header class="mb-10 border-b border-border pb-8">
+      <h1 class="mb-3 text-3xl font-semibold leading-tight">{p.title}</h1>
+      <p class="mb-5 text-muted-foreground">{p.description}</p>
+
+      <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+        <span>{dateStr}</span>
+        <span>{p.reading_time} min de leitura</span>
+        {p.newsletter && <Badge variant="secondary">newsletter</Badge>}
+        {p.project && projectTitle && (
+          <a href={`/projects/${p.project}`} class="transition-colors hover:text-foreground">
+            <Badge variant="outline">{projectTitle}</Badge>
+          </a>
+        )}
+      </div>
+
+      {(p.tags ?? []).length > 0 && (
+        <div class="mt-4 flex flex-wrap gap-2">
+          {(p.tags ?? []).map((tag: string) => (
+            <a href={`/blog?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
+          ))}
+        </div>
+      )}
+    </header>
+
+    <div class="prose prose-invert prose-sm max-w-none" set:html={contentHtml} />
+
+    <div class="mt-16 border-t border-border pt-8">
+      <a href="/blog" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
+        ← back to blog
+      </a>
+    </div>
+  </article>
+</Base>

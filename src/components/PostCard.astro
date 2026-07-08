@@ -1,71 +1,64 @@
 ---
-import Tag from './Tag.astro';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
+  id: string;
+  slug: string;
   title: string;
   description: string;
-  date: Date;
-  slug: string;
+  date: string;
   tags?: string[];
-  project?: string;
+  project?: string | null;
   newsletter?: boolean;
+  reading_time?: number;
   delay?: number;
 }
 
 const {
+  slug,
   title,
   description,
   date,
-  slug,
   tags = [],
   project,
   newsletter = false,
+  reading_time = 1,
   delay = 0,
 } = Astro.props;
 
 const dateStr = new Date(date).toLocaleDateString('pt-BR', {
   year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
+  month: 'short',
+  day: 'numeric',
 });
 ---
 
-<article
-  class="fade-in"
-  style={`
-    border: 1px solid var(--border);
-    background: var(--surface);
-    padding: 1.25rem 1.5rem;
-    transition: border-color 0.2s;
-    transition-delay: ${delay}ms;
-  `}
-  onmouseover="this.style.borderColor='var(--accent)';"
-  onmouseout="this.style.borderColor='var(--border)';"
->
-  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem;">
-    <a href={`/blog/${slug}`} style="flex: 1;">
-      <h3 style="font-size: 0.9375rem; font-weight: 600; color: var(--text); transition: color 0.2s; line-height: 1.4;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--text)';">
+<a href={`/blog/${slug}`} class="fade-in group block h-full" style={`transition-delay: ${delay}ms`}>
+  <Card className="h-full transition-colors group-hover:ring-foreground/20">
+    <CardContent className="flex h-full flex-col gap-3">
+      <div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{dateStr}</span>
+        <div class="flex items-center gap-1.5">
+          {newsletter && <Badge variant="outline">newsletter</Badge>}
+          {project && <Badge variant="secondary">{project}</Badge>}
+        </div>
+      </div>
+
+      <h3 class="line-clamp-2 text-base font-semibold transition-colors group-hover:text-foreground/80">
         {title}
       </h3>
-    </a>
-    <span style="font-size: 0.7rem; color: var(--subtle); white-space: nowrap; padding-top: 0.2rem;">{dateStr}</span>
-  </div>
 
-  <p style="font-size: 0.8125rem; color: var(--muted); line-height: 1.6; margin-bottom: 0.875rem;">
-    {description}
-  </p>
+      <p class="line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+        {description}
+      </p>
 
-  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-    {tags.map((tag) => <Tag tag={tag} href={`/blog?tag=${tag}`} />)}
-    {project && (
-      <a
-        href={`/projects/${project}`}
-        style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--subtle); border: 1px solid var(--border); padding: 0.15em 0.55em; border-radius: 2px; transition: color 0.2s, border-color 0.2s;"
-        onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)';"
-        onmouseout="this.style.color='var(--subtle)';this.style.borderColor='var(--border)';"
-      >
-        ⬡ {project}
-      </a>
-    )}
-  </div>
-</article>
+      <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+        <div class="flex flex-wrap gap-1.5">
+          {tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
+        </div>
+        <span class="whitespace-nowrap text-xs text-muted-foreground">{reading_time} min</span>
+      </div>
+    </CardContent>
+  </Card>
+</a>

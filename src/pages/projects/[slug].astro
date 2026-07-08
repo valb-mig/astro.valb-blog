@@ -1,118 +1,101 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
-import Tag from '../../components/Tag.astro';
-import { getCollection, render } from 'astro:content';
+import { Badge } from '@/components/ui/badge';
+import { db } from '../../lib/db';
+import type { Project, Post } from '../../lib/db';
+import { marked } from 'marked';
 
-export async function getStaticPaths() {
-  const projects = await getCollection('projects', ({ data }) => !data.draft);
-  return projects.map((project) => ({
-    params: { slug: project.slug },
-    props: { project },
-  }));
-}
+const { slug } = Astro.params;
 
-const { project } = Astro.props;
-const { Content } = await render(project);
-const { title, description, date, tags, status, repo, url } = project.data;
+const { data: project, error } = await db
+  .from('projects')
+  .select('*')
+  .eq('slug', slug!)
+  .eq('draft', false)
+  .single();
 
-// Get all posts linked to this project
-const linkedPosts = await getCollection('blog', ({ data }) => {
-  return !data.draft && data.project === project.slug;
-});
-const sortedPosts = linkedPosts.sort(
-  (a, b) => b.data.date.valueOf() - a.data.date.valueOf()
-);
+if (error || !project) return Astro.redirect('/projects');
 
-const statusColor = {
-  active: 'var(--accent)',
-  completed: 'var(--muted)',
-  archived: 'var(--subtle)',
+const p = project as Project;
+const contentHtml = await marked.parse(p.content);
+
+const { data: linkedPostsRaw } = await db
+  .from('posts')
+  .select('id,slug,title,description,date,tags,reading_time')
+  .eq('draft', false)
+  .eq('project', p.slug)
+  .order('date', { ascending: false });
+
+const linkedPosts = (linkedPostsRaw ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'>[];
+
+const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+  active: 'default',
+  completed: 'secondary',
+  archived: 'outline',
 };
 
-const dateStr = new Date(date).toLocaleDateString('pt-BR', {
+const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
   year: 'numeric',
   month: 'long',
   day: 'numeric',
 });
 ---
 
-<Base title={`${title} — projects`} description={description}>
-  <div style="max-width: 72rem; margin: 0 auto; padding: 6rem 1.5rem 8rem;">
+<Base title={`${p.title} — Projects`} description={p.description}>
+  <div class="mx-auto max-w-2xl px-6 py-16">
 
-    <!-- Breadcrumb -->
-    <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 2rem;">
-      <a href="/" style="color: var(--accent);">~</a>
+    <p class="mb-8 text-sm text-muted-foreground">
+      <a href="/" class="hover:text-foreground">Home</a>
       <span> / </span>
-      <a href="/projects" style="color: var(--muted);">projects</a>
+      <a href="/projects" class="hover:text-foreground">Projects</a>
       <span> / </span>
-      <span style="color: var(--muted);">{project.slug}</span>
+      <span>{p.slug}</span>
     </p>
 
-    <!-- Header -->
-    <header style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 2rem;">
-      <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.75rem;">❯ cat projects/{project.slug}/README.md</p>
-      <h1 style="font-size: 2rem; font-weight: 700; color: var(--text); margin-bottom: 0.75rem;">
-        ⬡ {title}
-      </h1>
-      <p style="color: var(--muted); margin-bottom: 1.25rem;">{description}</p>
+    <header class="mb-10 border-b border-border pb-8">
+      <h1 class="mb-3 text-3xl font-semibold">{p.title}</h1>
+      <p class="mb-5 text-muted-foreground">{p.description}</p>
 
-      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem;">
-        <span style={`color: ${statusColor[status]}; border: 1px solid ${statusColor[status]}; padding: 0.1em 0.5em; border-radius: 2px;`}>
-          {status}
-        </span>
-        <span style="color: var(--subtle);">{dateStr}</span>
-        {repo && (
-          <a href={repo} target="_blank" rel="noopener"
-            style="color: var(--muted); transition: color 0.2s;"
-            onmouseover="this.style.color='var(--accent)';"
-            onmouseout="this.style.color='var(--muted)';"
-          >
+      <div class="flex flex-wrap items-center gap-3 text-sm">
+        <Badge variant={statusVariant[p.status]}>{p.status}</Badge>
+        <span class="text-muted-foreground">{dateStr}</span>
+        {p.repo && (
+          <a href={p.repo} target="_blank" rel="noopener" class="text-muted-foreground transition-colors hover:text-foreground">
             repo ↗
           </a>
         )}
-        {url && (
-          <a href={url} target="_blank" rel="noopener"
-            style="color: var(--muted); transition: color 0.2s;"
-            onmouseover="this.style.color='var(--accent)';"
-            onmouseout="this.style.color='var(--muted)';"
-          >
+        {p.url && (
+          <a href={p.url} target="_blank" rel="noopener" class="text-muted-foreground transition-colors hover:text-foreground">
             site ↗
           </a>
         )}
       </div>
 
-      {tags.length > 0 && (
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
-          {tags.map((tag) => <Tag tag={tag} />)}
+      {(p.tags ?? []).length > 0 && (
+        <div class="mt-4 flex flex-wrap gap-2">
+          {(p.tags ?? []).map((tag: string) => <Badge variant="outline">{tag}</Badge>)}
         </div>
       )}
     </header>
 
-    <!-- Project content -->
-    <div class="prose" style="margin-bottom: 4rem;">
-      <Content />
-    </div>
+    {p.content && (
+      <div class="prose prose-invert prose-sm mb-16 max-w-none" set:html={contentHtml} />
+    )}
 
-    <!-- Linked posts -->
-    {sortedPosts.length > 0 && (
+    {linkedPosts.length > 0 && (
       <section id="posts">
-        <div style="margin-bottom: 1.5rem;">
-          <p style="font-size: 0.75rem; color: var(--subtle); margin-bottom: 0.25rem;">
-            ❯ ls blog/ --project={project.slug}
-          </p>
-          <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text);">
-            # posts sobre esse projeto
-          </h2>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-          {sortedPosts.map((post, i) => (
+        <h2 class="mb-6 text-lg font-semibold">Posts sobre esse projeto</h2>
+        <div class="grid grid-cols-1 gap-4">
+          {linkedPosts.map((post, i) => (
             <PostCard
-              title={post.data.title}
-              description={post.data.description}
-              date={post.data.date}
+              id={post.id}
               slug={post.slug}
-              tags={post.data.tags}
+              title={post.title}
+              description={post.description}
+              date={post.date}
+              tags={post.tags}
+              reading_time={post.reading_time}
               delay={i * 60}
             />
           ))}
@@ -120,8 +103,8 @@ const dateStr = new Date(date).toLocaleDateString('pt-BR', {
       </section>
     )}
 
-    <div style="margin-top: 4rem; border-top: 1px solid var(--border); padding-top: 2rem;">
-      <a href="/projects" style="font-size: 0.875rem; color: var(--muted); transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--muted)';">
+    <div class="mt-16 border-t border-border pt-8">
+      <a href="/projects" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
         ← back to projects
       </a>
     </div>

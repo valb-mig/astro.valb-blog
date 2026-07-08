@@ -1,15 +1,3 @@
-/**
- * lib/newsletter.ts
- *
- * Utilitários para integração com serviços de newsletter.
- * Conecte aqui quando for implementar o envio automatizado.
- *
- * Serviços sugeridos:
- *   - Resend (https://resend.com) — simples, ótimo DX
- *   - Loops (https://loops.so) — voltado para devs
- *   - Buttondown (https://buttondown.com) — leve, focado em escrita
- */
-
 export interface NewsletterPost {
   slug: string;
   title: string;
@@ -19,10 +7,6 @@ export interface NewsletterPost {
   url: string;
 }
 
-/**
- * Busca posts marcados para newsletter via API interna.
- * Útil em scripts de CI/CD ou edge functions.
- */
 export async function fetchNewsletterPosts(
   siteUrl: string,
   since?: Date
@@ -35,10 +19,6 @@ export async function fetchNewsletterPosts(
   return res.json();
 }
 
-/**
- * Formata posts em HTML simples para o corpo do email.
- * Customizar conforme o template do seu serviço.
- */
 export function formatPostsAsEmail(posts: NewsletterPost[], siteUrl: string): string {
   const items = posts
     .map(

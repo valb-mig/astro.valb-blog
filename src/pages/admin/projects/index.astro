@@ -1,0 +1,85 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import { db } from '../../../lib/db';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DeleteButton } from '@/components/DeleteButton';
+import { Plus } from 'lucide-react';
+
+const { data: projects } = await db
+  .from('projects')
+  .select('id,slug,title,date,draft,status')
+  .order('date', { ascending: false });
+
+const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+  active: 'default',
+  completed: 'secondary',
+  archived: 'outline',
+};
+---
+
+<Admin title="Projects">
+  <div class="mb-8 flex items-center justify-between">
+    <h1 class="text-xl font-semibold">Projects</h1>
+    <Button asChild>
+      <a href="/admin/projects/new">
+        <Plus />
+        novo projeto
+      </a>
+    </Button>
+  </div>
+
+  {!projects?.length ? (
+    <p class="text-sm text-muted-foreground">
+      nenhum projeto ainda. <a href="/admin/projects/new" class="text-foreground underline">criar primeiro →</a>
+    </p>
+  ) : (
+    <div class="rounded-lg border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>título</TableHead>
+            <TableHead>status</TableHead>
+            <TableHead>data</TableHead>
+            <TableHead className="text-right">ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(projects ?? []).map((proj) => (
+            <TableRow data-id={proj.id}>
+              <TableCell>
+                <a href={`/admin/projects/${proj.id}`} class="font-medium hover:underline">{proj.title}</a>
+                <p class="text-xs text-muted-foreground">{proj.slug}</p>
+              </TableCell>
+              <TableCell>
+                <div class="flex gap-1.5">
+                  <Badge variant={statusVariant[proj.status]}>{proj.status}</Badge>
+                  {proj.draft && <Badge variant="outline">draft</Badge>}
+                </div>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {new Date(proj.date).toLocaleDateString('pt-BR')}
+              </TableCell>
+              <TableCell className="text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href={`/admin/projects/${proj.id}`}>editar</a>
+                  </Button>
+                  <DeleteButton id={proj.id} title={proj.title} resource="projects" client:load />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )}
+
+  <script>
+    document.addEventListener('row-deleted', (e) => {
+      const { id } = (e as CustomEvent).detail;
+      document.querySelector(`tr[data-id="${id}"]`)?.remove();
+    });
+  </script>
+</Admin>

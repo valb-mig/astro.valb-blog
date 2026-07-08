@@ -1,5 +1,6 @@
 ---
-import Tag from './Tag.astro';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   title: string;
@@ -26,60 +27,47 @@ const {
   delay = 0,
 } = Astro.props;
 
-const statusColor = {
-  active: 'var(--accent)',
-  completed: 'var(--muted)',
-  archived: 'var(--subtle)',
+const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+  active: 'default',
+  completed: 'secondary',
+  archived: 'outline',
 };
 ---
 
-<article
-  class="fade-in"
-  style={`
-    border: 1px solid var(--border);
-    background: var(--surface);
-    padding: 1.5rem;
-    transition: border-color 0.2s;
-    transition-delay: ${delay}ms;
-  `}
-  onmouseover="this.style.borderColor='var(--accent)';"
-  onmouseout="this.style.borderColor='var(--border)';"
->
-  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem;">
-    <a href={`/projects/${slug}`}>
-      <h3 style="font-size: 0.9375rem; font-weight: 600; color: var(--text); transition: color 0.2s;" onmouseover="this.style.color='var(--accent)';" onmouseout="this.style.color='var(--text)';">
-        ⬡ {title}
-      </h3>
-    </a>
-    <span style={`font-size: 0.65rem; color: ${statusColor[status]}; border: 1px solid ${statusColor[status]}; padding: 0.1em 0.5em; border-radius: 2px; white-space: nowrap;`}>
-      {status}
-    </span>
-  </div>
-
-  <p style="font-size: 0.8125rem; color: var(--muted); line-height: 1.6; margin-bottom: 1rem;">
-    {description}
-  </p>
-
-  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
-    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-      {tags.map((tag) => <Tag tag={tag} />)}
+<Card className="fade-in h-full" style={`transition-delay: ${delay}ms`}>
+  <CardContent className="flex h-full flex-col gap-3">
+    <div class="flex items-center justify-between gap-2">
+      <a href={`/projects/${slug}`} class="group min-w-0">
+        <span class="truncate text-base font-semibold transition-colors group-hover:text-foreground/80">
+          {title}
+        </span>
+      </a>
+      <Badge variant={statusVariant[status]}>{status}</Badge>
     </div>
-    <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.7rem; color: var(--subtle);">
-      {postCount > 0 && (
-        <a href={`/projects/${slug}#posts`} style="transition: color 0.2s;" onmouseover="this.style.color='var(--muted)';" onmouseout="this.style.color='var(--subtle)';">
-          {postCount} post{postCount !== 1 ? 's' : ''}
-        </a>
-      )}
-      {repo && (
-        <a href={repo} target="_blank" rel="noopener" style="transition: color 0.2s;" onmouseover="this.style.color='var(--muted)';" onmouseout="this.style.color='var(--subtle)';">
-          repo ↗
-        </a>
-      )}
-      {url && (
-        <a href={url} target="_blank" rel="noopener" style="transition: color 0.2s;" onmouseover="this.style.color='var(--muted)';" onmouseout="this.style.color='var(--subtle)';">
-          site ↗
-        </a>
-      )}
+
+    <p class="line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
+
+    <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+      <div class="flex flex-wrap gap-1.5">
+        {tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
+      </div>
+      <div class="flex items-center gap-3 text-xs text-muted-foreground">
+        {postCount > 0 && (
+          <a href={`/projects/${slug}#posts`} class="transition-colors hover:text-foreground">
+            {postCount} posts
+          </a>
+        )}
+        {repo && (
+          <a href={repo} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
+            repo
+          </a>
+        )}
+        {url && (
+          <a href={url} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
+            site
+          </a>
+        )}
+      </div>
     </div>
-  </div>
-</article>
+  </CardContent>
+</Card>

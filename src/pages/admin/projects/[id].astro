@@ -1,0 +1,145 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import MarkdownEditor from '../../../components/MarkdownEditor.astro';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { DeleteButton } from '@/components/DeleteButton';
+import { db } from '../../../lib/db';
+import type { Project } from '../../../lib/db';
+
+const { id } = Astro.params;
+const { data: project, error } = await db.from('projects').select('*').eq('id', id!).single();
+
+if (error || !project) return Astro.redirect('/admin/projects');
+
+const p = project as Project;
+const dateStr = new Date(p.date).toISOString().split('T')[0];
+const tagsStr = (p.tags ?? []).join(', ');
+
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+---
+
+<Admin title={`Editar: ${p.title}`}>
+  <h1 class="mb-8 text-xl font-semibold">Editar projeto</h1>
+
+  <form id="proj-form" class="flex flex-col gap-6">
+    <input type="hidden" id="proj-id" value={p.id} />
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-title">título *</Label>
+        <Input id="f-title" type="text" required value={p.title} />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-slug">slug *</Label>
+        <Input id="f-slug" type="text" required value={p.slug} />
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-description">descrição *</Label>
+      <Input id="f-description" type="text" required value={p.description} />
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-date">data *</Label>
+        <Input id="f-date" type="date" required value={dateStr} />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-status">status</Label>
+        <select id="f-status" class={selectClass}>
+          <option value="active" selected={p.status === 'active'}>active</option>
+          <option value="completed" selected={p.status === 'completed'}>completed</option>
+          <option value="archived" selected={p.status === 'archived'}>archived</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-repo">repo (URL)</Label>
+        <Input id="f-repo" type="url" value={p.repo ?? ''} />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-url">site (URL)</Label>
+        <Input id="f-url" type="url" value={p.url ?? ''} />
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-tags">tags (vírgula)</Label>
+      <Input id="f-tags" type="text" value={tagsStr} />
+    </div>
+
+    <label class="flex items-center gap-2 text-sm text-muted-foreground">
+      <input id="f-draft" type="checkbox" checked={p.draft} class="accent-primary" />
+      draft
+    </label>
+
+    <div class="flex flex-col gap-1.5">
+      <Label>descrição longa (markdown)</Label>
+      <MarkdownEditor name="content" initialValue={p.content} />
+    </div>
+
+    <div class="flex flex-wrap items-center gap-4 pt-2">
+      <Button type="submit" id="save-btn">salvar alterações</Button>
+      <a href={`/projects/${p.slug}`} target="_blank" class="text-sm text-muted-foreground hover:text-foreground">ver projeto ↗</a>
+      <a href="/admin/projects" class="text-sm text-muted-foreground hover:text-foreground">voltar</a>
+      <div class="ml-auto">
+        <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/admin/projects" client:load />
+      </div>
+      <p id="save-error" class="hidden w-full text-sm text-destructive"></p>
+    </div>
+  </form>
+</Admin>
+
+<script>
+  const projId = (document.getElementById('proj-id') as HTMLInputElement).value;
+  const form = document.getElementById('proj-form')!;
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+  const saveError = document.getElementById('save-error')!;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveError.classList.add('hidden');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'salvando...';
+
+    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
+    const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
+    const urlVal = (document.getElementById('f-url') as HTMLInputElement).value.trim();
+
+    const payload = {
+      title: (document.getElementById('f-title') as HTMLInputElement).value,
+      slug: (document.getElementById('f-slug') as HTMLInputElement).value,
+      description: (document.getElementById('f-description') as HTMLInputElement).value,
+      date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
+      status: (document.getElementById('f-status') as HTMLSelectElement).value,
+      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
+      repo: repoVal || null,
+      url: urlVal || null,
+      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
+    };
+
+    const res = await fetch(`/api/projects/${projId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      saveBtn.textContent = 'salvo!';
+      setTimeout(() => {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'salvar alterações';
+      }, 1500);
+    } else {
+      const { error } = await res.json();
+      saveError.textContent = error ?? 'Erro ao salvar';
+      saveError.classList.remove('hidden');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'salvar alterações';
+    }
+  });
+</script>

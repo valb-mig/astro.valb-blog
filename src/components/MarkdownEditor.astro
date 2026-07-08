@@ -1,0 +1,262 @@
+---
+interface Props {
+  initialValue?: string;
+  name?: string;
+}
+const { initialValue = '', name = 'content' } = Astro.props;
+---
+
+<div class="md-editor-root">
+  <div class="md-editor-tabs">
+    <button type="button" class="md-tab active" data-tab="edit">edit</button>
+    <button type="button" class="md-tab" data-tab="preview">preview</button>
+  </div>
+
+  <div class="md-editor-panels">
+    <div id="md-editor-panel" class="md-panel">
+      <button type="button" class="md-maximize-btn" data-target="edit" title="maximizar">⛶</button>
+      <div id="md-cm-mount"></div>
+    </div>
+    <div class="md-resizer"></div>
+    <div id="md-preview-panel" class="md-panel prose prose-invert prose-sm md-preview">
+      <button type="button" class="md-maximize-btn" data-target="preview" title="maximizar">⛶</button>
+      <p style="color: var(--muted-foreground); font-size: 0.8125rem;">loading preview...</p>
+    </div>
+  </div>
+
+  <!-- Hidden textarea synced with CodeMirror -->
+  <textarea id="md-content-value" name={name} style="display:none">{initialValue}</textarea>
+</div>
+
+<style>
+.md-editor-root {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.md-editor-tabs {
+  display: none;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  padding: 0 0.75rem;
+}
+
+.md-tab {
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.md-tab.active { color: var(--foreground); border-bottom-color: var(--foreground); }
+
+.md-editor-panels {
+  display: grid;
+  grid-template-columns: 1fr 6px 1fr;
+  min-height: 480px;
+}
+
+.md-panel {
+  overflow: auto;
+  position: relative;
+}
+
+.md-resizer {
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+}
+.md-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+}
+.md-resizer:hover,
+.md-resizer.dragging {
+  background: var(--foreground);
+}
+
+.md-maximize-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 4px);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s, color 0.2s;
+}
+.md-maximize-btn:hover {
+  opacity: 1;
+  color: var(--foreground);
+}
+
+.md-editor-panels.md-max-edit .md-resizer,
+.md-editor-panels.md-max-edit #md-preview-panel,
+.md-editor-panels.md-max-preview .md-resizer,
+.md-editor-panels.md-max-preview #md-editor-panel {
+  display: none;
+}
+.md-editor-panels.md-max-edit,
+.md-editor-panels.md-max-preview {
+  grid-template-columns: 1fr !important;
+}
+
+.md-preview {
+  padding: 1.25rem 1.5rem;
+  background: var(--background);
+  max-width: 100%;
+}
+
+/* Override .prose max-width in preview */
+.md-preview.prose {
+  max-width: 100%;
+}
+
+/* CodeMirror overrides to match theme */
+:global(.cm-editor) {
+  height: 100%;
+  min-height: 480px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+:global(.cm-scroller) { overflow: auto; }
+
+@media (max-width: 768px) {
+  .md-editor-tabs { display: flex; }
+  .md-editor-panels {
+    grid-template-columns: 1fr;
+  }
+  .md-resizer,
+  .md-maximize-btn { display: none; }
+
+  /* Mobile: tabs control visibility */
+  .md-editor-panels[data-tab="edit"] #md-preview-panel { display: none; }
+  .md-editor-panels[data-tab="preview"] #md-editor-panel { display: none; }
+}
+</style>
+
+<script>
+  import { EditorView, basicSetup } from 'codemirror';
+  import { markdown } from '@codemirror/lang-markdown';
+  import { oneDark } from '@codemirror/theme-one-dark';
+  import { marked } from 'marked';
+
+  const textarea = document.getElementById('md-content-value') as HTMLTextAreaElement;
+  const previewEl = document.getElementById('md-preview-panel')!;
+  const panelsEl = document.querySelector('.md-editor-panels')!;
+
+  function renderPreview(content: string) {
+    previewEl.innerHTML = marked.parse(content) as string;
+  }
+
+  const view = new EditorView({
+    doc: textarea.value,
+    extensions: [
+      basicSetup,
+      markdown(),
+      oneDark,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          const content = update.state.doc.toString();
+          textarea.value = content;
+          renderPreview(content);
+        }
+      }),
+    ],
+    parent: document.getElementById('md-cm-mount')!,
+  });
+
+  renderPreview(textarea.value);
+
+  // Mobile tabs
+  document.querySelectorAll<HTMLButtonElement>('.md-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.md-tab').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (window.innerWidth <= 768) {
+        panelsEl.setAttribute('data-tab', btn.dataset.tab ?? 'edit');
+      }
+    });
+  });
+
+  const isDesktop = () => window.innerWidth > 768;
+
+  function syncPanelsForViewport() {
+    if (!isDesktop()) {
+      panelsEl.classList.remove('md-max-edit', 'md-max-preview');
+      (panelsEl as HTMLElement).style.gridTemplateColumns = '';
+    }
+  }
+  syncPanelsForViewport();
+  window.addEventListener('resize', syncPanelsForViewport);
+
+  // Desktop: resizable panels
+  const resizer = document.querySelector<HTMLElement>('.md-resizer');
+  let lastColumns = '1fr 6px 1fr';
+
+  if (resizer) {
+    resizer.addEventListener('mousedown', (e) => {
+      if (!isDesktop()) return;
+      e.preventDefault();
+      resizer.classList.add('dragging');
+      const panelsRect = (panelsEl as HTMLElement).getBoundingClientRect();
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const offsetX = moveEvent.clientX - panelsRect.left;
+        const percent = Math.min(80, Math.max(20, (offsetX / panelsRect.width) * 100));
+        lastColumns = `${percent}% 6px ${100 - percent}%`;
+        (panelsEl as HTMLElement).style.gridTemplateColumns = lastColumns;
+      };
+
+      const onMouseUp = () => {
+        resizer.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  // Desktop: maximize/restore panel
+  document.querySelectorAll<HTMLButtonElement>('.md-maximize-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!isDesktop()) return;
+      const target = btn.dataset.target;
+      const maxClass = target === 'edit' ? 'md-max-edit' : 'md-max-preview';
+      const isMaximized = panelsEl.classList.contains(maxClass);
+
+      panelsEl.classList.remove('md-max-edit', 'md-max-preview');
+      (panelsEl as HTMLElement).style.gridTemplateColumns = '';
+
+      if (!isMaximized) {
+        panelsEl.classList.add(maxClass);
+        btn.textContent = '⛶';
+      } else {
+        (panelsEl as HTMLElement).style.gridTemplateColumns = lastColumns;
+      }
+    });
+  });
+
+  // Expose view for external access if needed
+  (window as any).__mdEditor = view;
+</script>

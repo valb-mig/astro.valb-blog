@@ -1,0 +1,137 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import MarkdownEditor from '../../../components/MarkdownEditor.astro';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+---
+
+<Admin title="Novo Projeto">
+  <h1 class="mb-8 text-xl font-semibold">Novo projeto</h1>
+
+  <form id="proj-form" class="flex flex-col gap-6">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-title">título *</Label>
+        <Input id="f-title" type="text" required placeholder="Nome do projeto" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-slug">slug *</Label>
+        <Input id="f-slug" type="text" required placeholder="nome-do-projeto" />
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-description">descrição *</Label>
+      <Input id="f-description" type="text" required placeholder="Resumo curto" />
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-date">data *</Label>
+        <Input id="f-date" type="date" required />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-status">status</Label>
+        <select id="f-status" class={selectClass}>
+          <option value="active">active</option>
+          <option value="completed">completed</option>
+          <option value="archived">archived</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-repo">repo (URL)</Label>
+        <Input id="f-repo" type="url" placeholder="https://github.com/..." />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label htmlFor="f-url">site (URL)</Label>
+        <Input id="f-url" type="url" placeholder="https://..." />
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-tags">tags (vírgula)</Label>
+      <Input id="f-tags" type="text" placeholder="astro, typescript" />
+    </div>
+
+    <label class="flex items-center gap-2 text-sm text-muted-foreground">
+      <input id="f-draft" type="checkbox" checked class="accent-primary" />
+      draft
+    </label>
+
+    <div class="flex flex-col gap-1.5">
+      <Label>descrição longa (markdown)</Label>
+      <MarkdownEditor name="content" />
+    </div>
+
+    <div class="flex items-center gap-4 pt-2">
+      <Button type="submit" id="save-btn">salvar projeto</Button>
+      <a href="/admin/projects" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
+      <p id="save-error" class="hidden text-sm text-destructive"></p>
+    </div>
+  </form>
+</Admin>
+
+<script>
+  const dateInput = document.getElementById('f-date') as HTMLInputElement;
+  dateInput.value = new Date().toISOString().split('T')[0];
+
+  const titleInput = document.getElementById('f-title') as HTMLInputElement;
+  const slugInput = document.getElementById('f-slug') as HTMLInputElement;
+  let slugTouched = false;
+  slugInput.addEventListener('input', () => { slugTouched = true; });
+  titleInput.addEventListener('input', () => {
+    if (!slugTouched) {
+      slugInput.value = titleInput.value
+        .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
+    }
+  });
+
+  const form = document.getElementById('proj-form')!;
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+  const saveError = document.getElementById('save-error')!;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveError.classList.add('hidden');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'salvando...';
+
+    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
+    const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
+    const urlVal = (document.getElementById('f-url') as HTMLInputElement).value.trim();
+
+    const payload = {
+      title: (document.getElementById('f-title') as HTMLInputElement).value,
+      slug: (document.getElementById('f-slug') as HTMLInputElement).value,
+      description: (document.getElementById('f-description') as HTMLInputElement).value,
+      date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
+      status: (document.getElementById('f-status') as HTMLSelectElement).value,
+      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
+      repo: repoVal || null,
+      url: urlVal || null,
+      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
+    };
+
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      window.location.href = '/admin/projects';
+    } else {
+      const { error } = await res.json();
+      saveError.textContent = error ?? 'Erro ao salvar';
+      saveError.classList.remove('hidden');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'salvar projeto';
+    }
+  });
+</script>
