@@ -38,11 +38,13 @@ CONTEXT.md como fonte de verdade até alguém reescrever o CLAUDE.md.
 ## Arquitetura
 
 ### Dados (Supabase)
-- `posts` — title, description, content, date, tags, draft, newsletter,
+- `posts` — title, description, content, date, tags, draft,
   reading_time (não tem mais `project` — ver `post_projects`)
-- `projects` — title, description, content, date, tags, status
-  (active/completed/archived), repo, url, draft, `parent_project_id`
-  (self-FK para vincular projeto a projeto)
+- `projects` — title, description, content (readme do repo quando sincronizado
+  do GitHub), date, tags (topics do GitHub quando sincronizado), status
+  (active/completed/archived), repo (`owner/name`, link pro GitHub é derivado
+  disso — sem coluna `url` separada), draft, `parent_project_id` (self-FK
+  para vincular projeto a projeto)
 - `post_projects` — join many-to-many `post_id ↔ project_id` (um post pode
   se vincular a vários projetos). Substituiu a antiga coluna
   `posts.project` (slug único) em 2026-07-08; migração rodada manualmente
@@ -70,15 +72,15 @@ Tipos TypeScript centralizados em `src/lib/db.ts`.
 | `/api/projects`, `/api/projects/[id]` | CRUD projects, mesma regra de draft |
 | `/api/auth/login`, `/api/auth/logout` | sessão admin |
 | `/api/command-items` | dados pro command palette (Ctrl+K) |
-| `/api/newsletter-posts` | JSON de posts `newsletter:true` ou tag `newsletter`, aceita `?since=` |
 
 ### Pipeline de ingest (GitHub → Groq → Supabase)
-`scripts/ingest.ts` + `.github/workflows/ingest.yml` (cron diário `0 3 * * *`
-+ `workflow_dispatch` manual). Reescrito em 2026-07-08 pra sair do formato
-"parágrafo genérico + lista flat de referências" (robótico, sem estrutura) pra
-um post estruturado por repo. Fluxo atual:
+`scripts/ingest.ts` + `.github/workflows/ingest.yml` (cron diário `55 23 * * *`,
+perto do fim do dia UTC + `workflow_dispatch` manual). Reescrito em 2026-07-08
+pra sair do formato "parágrafo genérico + lista flat de referências" (robótico,
+sem estrutura) pra um post estruturado por repo. Fluxo atual:
 
-1. Busca eventos das últimas 24h via Octokit, upsert em `source_events`
+1. Busca eventos do dia (dia calendário UTC, `since` = 00:00 UTC de hoje —
+   antes era janela rolante de 24h) via Octokit, upsert em `source_events`
    (dedupe por `source,type,external_id,repo`)
 2. Pré-processamento determinístico (sem gastar token de LLM): parse de
    conventional commits (`feat`/`fix`/`docs`/...), dedup de commit
@@ -103,7 +105,10 @@ um post estruturado por repo. Fluxo atual:
    por repo — commits nunca aparecem citados na prosa
 6. `pnpm ingest:local -- --force` força reconstrução do post do dia mesmo
    sem evento novo (útil pra testar mudança de prompt sem esperar atividade
-   real)
+   real). `--date=YYYY-MM-DD` sobrescreve "hoje" em todo o pipeline (janela
+   de busca, slug `atividade-YYYY-MM-DD`, título do post, detecção de repo
+   novo) — pra rodar a rotina manualmente num dia passado, ex.
+   `pnpm ingest:local -- --date=2026-07-06 --force`
 7. **Sync diário de projetos** (2026-07-08): antes de tudo isso, `main()`
    lista todos os repos do usuário via `octokit.paginate(repos.listForAuthenticatedUser)`
    e cria um projeto novo em `projects` pra cada repo sem registro ainda

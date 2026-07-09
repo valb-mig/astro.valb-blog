@@ -42,9 +42,11 @@ real do código.
 
 ## Ideias / backlog (sem compromisso)
 
-- [ ] Cron do ingest hoje roda 1x/dia (`0 3 * * *`) — decisão original era
-      "atualizar sempre no fim do dia", confirmar se o horário faz sentido
-      pro fuso do usuário
+- [x] Cron do ingest ajustado pra `55 23 * * *` (fim do dia UTC) e janela de
+      busca trocada de rolling 24h pra dia calendário UTC (2026-07-09) —
+      consistente com `todayStart`/slug `atividade-YYYY-MM-DD` que já usavam
+      dia UTC. Decisão explícita do usuário: manter tudo em UTC em vez de
+      BRT pra não precisar tocar em todayStart/slug/título do post também.
 - [ ] Tags/hashtags — conceito antigo foi descartado, versão nova ainda não
       definida (usuário pediu pra ignorar por enquanto)
 - [ ] Log de `main()` em `scripts/ingest.ts` às vezes imprime "N evento(s)
