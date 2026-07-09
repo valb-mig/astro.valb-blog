@@ -3,20 +3,20 @@ import Base from '../layouts/Base.astro';
 import PostCard from '../components/PostCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import { Button } from '@/components/ui/button';
-import { Rss } from 'lucide-react';
+import { Cat, GitCommit, Rss } from 'lucide-react';
 import { db } from '../lib/db';
 import type { Post, Project } from '../lib/db';
 
 const [postsRes, projectsRes, postProjectRes] = await Promise.all([
   db
     .from('posts')
-    .select('id,slug,title,description,date,tags,newsletter,reading_time')
+    .select('id,slug,title,description,date,tags,reading_time')
     .eq('draft', false)
     .order('date', { ascending: false })
     .limit(3),
   db
     .from('projects')
-    .select('id,slug,title,description,date,tags,status,repo,url')
+    .select('id,slug,title,description,date,tags,status,repo')
     .eq('draft', false)
     .eq('status', 'active')
     .order('date', { ascending: false })
@@ -27,8 +27,8 @@ const [postsRes, projectsRes, postProjectRes] = await Promise.all([
     .eq('posts.draft', false),
 ]);
 
-const latestPosts = (postsRes.data ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'newsletter'|'reading_time'>[];
-const activeProjects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'|'url'>[];
+const latestPosts = (postsRes.data ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'>[];
+const activeProjects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'>[];
 
 type PostProjectRow = { post_id: string; project_id: string; projects: { slug: string; title: string } | null };
 const postProjectRows = (postProjectRes.data ?? []) as unknown as PostProjectRow[];
@@ -59,14 +59,14 @@ for (const row of postProjectRows) {
       </div>
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" asChild>
-          <a href="https://github.com/valb-mig" target="_blank" rel="noopener">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          <a href="https://github.com/valb-mig" target="_blank" rel="noopener" class="flex items-center gap-1">
+            <Cat size={14} />
             GitHub
           </a>
         </Button>
         <Button variant="outline" size="sm" asChild>
-          <a href="/rss.xml">
-            <Rss />
+          <a href="/rss.xml" class="flex items-center gap-1">
+            <Rss size={14} />
             RSS
           </a>
         </Button>
@@ -92,7 +92,6 @@ for (const row of postProjectRows) {
               date={post.date}
               tags={post.tags}
               projects={projectsByPostId[post.id] ?? []}
-              newsletter={post.newsletter}
               reading_time={post.reading_time}
               delay={i * 80}
             />
@@ -122,7 +121,6 @@ for (const row of postProjectRows) {
               tags={project.tags}
               status={project.status}
               repo={project.repo ?? undefined}
-              url={project.url ?? undefined}
               postCount={postCountMap[project.id] ?? 0}
               delay={i * 80}
             />

@@ -24,7 +24,6 @@ export type Project = {
   tags: string[];
   status: 'active' | 'completed' | 'archived';
   repo: string | null;
-  url: string | null;
   draft: boolean;
   parent_project_id: string | null;
   created_at: string;

@@ -56,13 +56,9 @@ const selectClass =
           <option value="archived" selected={p.status === 'archived'}>archived</option>
         </select>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <Label htmlFor="f-repo">repo (URL)</Label>
-        <Input id="f-repo" type="url" value={p.repo ?? ''} />
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <Label htmlFor="f-url">site (URL)</Label>
-        <Input id="f-url" type="url" value={p.url ?? ''} />
+      <div class="flex flex-col gap-1.5 sm:col-span-2">
+        <Label htmlFor="f-repo">repo (owner/repositorio)</Label>
+        <Input id="f-repo" type="text" value={p.repo ?? ''} placeholder="usuario/repositorio" />
       </div>
     </div>
 
@@ -88,26 +84,24 @@ const selectClass =
       <div class="ml-auto">
         <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/admin/projects" client:load />
       </div>
-      <p id="save-error" class="hidden w-full text-sm text-destructive"></p>
     </div>
   </form>
 </Admin>
 
 <script>
+  import { toast } from 'sonner';
+
   const projId = (document.getElementById('proj-id') as HTMLInputElement).value;
   const form = document.getElementById('proj-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
-  const saveError = document.getElementById('save-error')!;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    saveError.classList.add('hidden');
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
     const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
     const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
-    const urlVal = (document.getElementById('f-url') as HTMLInputElement).value.trim();
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -117,7 +111,6 @@ const selectClass =
       status: (document.getElementById('f-status') as HTMLSelectElement).value,
       tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
       repo: repoVal || null,
-      url: urlVal || null,
       draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
@@ -129,15 +122,12 @@ const selectClass =
     });
 
     if (res.ok) {
-      saveBtn.textContent = 'salvo!';
-      setTimeout(() => {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'salvar alterações';
-      }, 1500);
+      toast.success('Alterações salvas.');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'salvar alterações';
     } else {
       const { error } = await res.json();
-      saveError.textContent = error ?? 'Erro ao salvar';
-      saveError.classList.remove('hidden');
+      toast.error(error ?? 'Erro ao salvar');
       saveBtn.disabled = false;
       saveBtn.textContent = 'salvar alterações';
     }

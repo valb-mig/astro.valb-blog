@@ -42,13 +42,9 @@ const selectClass =
           <option value="archived">archived</option>
         </select>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <Label htmlFor="f-repo">repo (URL)</Label>
-        <Input id="f-repo" type="url" placeholder="https://github.com/..." />
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <Label htmlFor="f-url">site (URL)</Label>
-        <Input id="f-url" type="url" placeholder="https://..." />
+      <div class="flex flex-col gap-1.5 sm:col-span-2">
+        <Label htmlFor="f-repo">repo (owner/repositorio)</Label>
+        <Input id="f-repo" type="text" placeholder="usuario/repositorio" />
       </div>
     </div>
 
@@ -70,7 +66,6 @@ const selectClass =
     <div class="flex items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar projeto</Button>
       <a href="/admin/projects" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
-      <p id="save-error" class="hidden text-sm text-destructive"></p>
     </div>
   </form>
 </Admin>
@@ -91,19 +86,19 @@ const selectClass =
     }
   });
 
+  import { toast } from 'sonner';
+  import { flashToast } from '../../../lib/toast';
+
   const form = document.getElementById('proj-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
-  const saveError = document.getElementById('save-error')!;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    saveError.classList.add('hidden');
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
     const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
     const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
-    const urlVal = (document.getElementById('f-url') as HTMLInputElement).value.trim();
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -113,7 +108,6 @@ const selectClass =
       status: (document.getElementById('f-status') as HTMLSelectElement).value,
       tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
       repo: repoVal || null,
-      url: urlVal || null,
       draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
@@ -125,11 +119,11 @@ const selectClass =
     });
 
     if (res.ok) {
+      flashToast('success', 'Projeto salvo.');
       window.location.href = '/admin/projects';
     } else {
       const { error } = await res.json();
-      saveError.textContent = error ?? 'Erro ao salvar';
-      saveError.classList.remove('hidden');
+      toast.error(error ?? 'Erro ao salvar');
       saveBtn.disabled = false;
       saveBtn.textContent = 'salvar projeto';
     }

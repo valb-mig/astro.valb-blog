@@ -10,7 +10,6 @@ interface Props {
   tags?: string[];
   status?: 'active' | 'completed' | 'archived';
   repo?: string;
-  url?: string;
   postCount?: number;
   delay?: number;
 }
@@ -22,10 +21,11 @@ const {
   tags = [],
   status = 'active',
   repo,
-  url,
   postCount = 0,
   delay = 0,
 } = Astro.props;
+
+const repoUrl = repo ? `https://github.com/${repo}` : undefined;
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   active: 'default',
@@ -57,14 +57,9 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
             {postCount} posts
           </a>
         )}
-        {repo && (
-          <a href={repo} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
+        {repoUrl && (
+          <a href={repoUrl} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
             repo
-          </a>
-        )}
-        {url && (
-          <a href={url} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
-            site
           </a>
         )}
       </div>
