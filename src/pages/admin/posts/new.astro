@@ -73,10 +73,6 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
         <input id="f-draft" type="checkbox" checked class="accent-primary" />
         draft (não publicado)
       </label>
-      <label class="flex items-center gap-2 text-sm text-muted-foreground">
-        <input id="f-newsletter" type="checkbox" class="accent-primary" />
-        marcar para newsletter
-      </label>
     </div>
 
     <div class="flex flex-col gap-1.5">
@@ -87,7 +83,6 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
     <div class="flex items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar post</Button>
       <a href="/admin/posts" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
-      <p id="save-error" class="ml-auto hidden text-sm text-destructive"></p>
     </div>
   </form>
 </Admin>
@@ -117,13 +112,14 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
   });
 
   // Form submit
+  import { toast } from 'sonner';
+  import { flashToast } from '../../../lib/toast';
+
   const form = document.getElementById('post-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
-  const saveError = document.getElementById('save-error')!;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    saveError.classList.add('hidden');
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
@@ -137,7 +133,6 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       tags,
       draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
-      newsletter: (document.getElementById('f-newsletter') as HTMLInputElement).checked,
       projectIds,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
@@ -149,11 +144,11 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
     });
 
     if (res.ok) {
+      flashToast('success', 'Post salvo.');
       window.location.href = '/admin/posts';
     } else {
       const { error } = await res.json();
-      saveError.textContent = error ?? 'Erro ao salvar';
-      saveError.classList.remove('hidden');
+      toast.error(error ?? 'Erro ao salvar');
       saveBtn.disabled = false;
       saveBtn.textContent = 'salvar post';
     }
