@@ -8,13 +8,13 @@ import type { Post } from '../../lib/db';
 const [{ data: allPosts }, { data: postProjectRows }] = await Promise.all([
   db
     .from('posts')
-    .select('id,slug,title,description,date,tags,newsletter,reading_time')
+    .select('id,slug,title,description,date,tags,reading_time')
     .eq('draft', false)
     .order('date', { ascending: false }),
   db.from('post_projects').select('post_id, projects(slug, title)'),
 ]);
 
-const posts = (allPosts ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'newsletter'|'reading_time'>[];
+const posts = (allPosts ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'>[];
 
 type PostProjectRow = { post_id: string; projects: { slug: string; title: string } | null };
 const projectsByPostId: Record<string, { slug: string; title: string }[]> = {};
@@ -31,7 +31,7 @@ const filtered = activeTag
   : posts;
 ---
 
-<Base title="Blog — valb">
+<Base title="Blog — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Blog' }]}>
   <div class="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 py-16 md:grid-cols-[180px_1fr]">
 
     <!-- Sidebar: tags -->
@@ -77,7 +77,6 @@ const filtered = activeTag
               date={post.date}
               tags={post.tags}
               projects={projectsByPostId[post.id] ?? []}
-              newsletter={post.newsletter}
               reading_time={post.reading_time}
               delay={i * 40}
             />

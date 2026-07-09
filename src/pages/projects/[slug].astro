@@ -19,15 +19,18 @@ if (error || !project) return Astro.redirect('/projects');
 
 const p = project as Project;
 const contentHtml = await marked.parse(p.content);
+const repoUrl = p.repo ? `https://github.com/${p.repo}` : null;
 
-const { data: linkedPostsRaw } = await db
-  .from('posts')
-  .select('id,slug,title,description,date,tags,reading_time')
-  .eq('draft', false)
-  .eq('project', p.slug)
-  .order('date', { ascending: false });
+const { data: linkedPostRows } = await db
+  .from('post_projects')
+  .select('posts!inner(id,slug,title,description,date,tags,reading_time,draft)')
+  .eq('project_id', p.id)
+  .eq('posts.draft', false);
 
-const linkedPosts = (linkedPostsRaw ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'>[];
+type LinkedPostRow = { posts: Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'> };
+const linkedPosts = ((linkedPostRows ?? []) as unknown as LinkedPostRow[])
+  .map((row) => row.posts)
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   active: 'default',
@@ -42,71 +45,92 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
 });
 ---
 
-<Base title={`${p.title} — Projects`} description={p.description}>
-  <div class="mx-auto max-w-2xl px-6 py-16">
+<Base
+  title={`${p.title} — Projects`}
+  description={p.description}
+  breadcrumb={[
+    { label: 'Home', href: '/' },
+    { label: 'Projects', href: '/projects' },
+    { label: p.slug },
+  ]}
+>
+  <div class="mx-auto max-w-4xl px-6 py-16 md:grid md:grid-cols-[1fr_220px] md:gap-10">
+    <div class="max-w-2xl">
 
-    <p class="mb-8 text-sm text-muted-foreground">
-      <a href="/" class="hover:text-foreground">Home</a>
-      <span> / </span>
-      <a href="/projects" class="hover:text-foreground">Projects</a>
-      <span> / </span>
-      <span>{p.slug}</span>
-    </p>
+      <header class="mb-10 border-b border-border pb-8">
+        <h1 class="mb-3 text-3xl font-semibold">{p.title}</h1>
+        <p class="mb-5 text-muted-foreground">{p.description}</p>
 
-    <header class="mb-10 border-b border-border pb-8">
-      <h1 class="mb-3 text-3xl font-semibold">{p.title}</h1>
-      <p class="mb-5 text-muted-foreground">{p.description}</p>
+        <div class="flex flex-wrap items-center gap-3 text-sm">
+          <Badge variant={statusVariant[p.status]}>{p.status}</Badge>
+          <span class="text-muted-foreground">{dateStr}</span>
+          {repoUrl && (
+            <a href={repoUrl} target="_blank" rel="noopener" class="text-muted-foreground transition-colors hover:text-foreground">
+              repo ↗
+            </a>
+          )}
+        </div>
 
-      <div class="flex flex-wrap items-center gap-3 text-sm">
-        <Badge variant={statusVariant[p.status]}>{p.status}</Badge>
-        <span class="text-muted-foreground">{dateStr}</span>
-        {p.repo && (
-          <a href={p.repo} target="_blank" rel="noopener" class="text-muted-foreground transition-colors hover:text-foreground">
-            repo ↗
-          </a>
+        {(p.tags ?? []).length > 0 && (
+          <div class="mt-4 flex flex-wrap gap-2">
+            {(p.tags ?? []).map((tag: string) => <Badge variant="outline">{tag}</Badge>)}
+          </div>
         )}
-        {p.url && (
-          <a href={p.url} target="_blank" rel="noopener" class="text-muted-foreground transition-colors hover:text-foreground">
-            site ↗
-          </a>
+      </header>
+
+      {p.content && (
+        <div class="prose prose-invert prose-sm mb-16 max-w-none" set:html={contentHtml} />
+      )}
+
+      <section id="posts" class="md:hidden">
+        <h2 class="mb-6 text-lg font-semibold">Posts sobre esse projeto</h2>
+        {linkedPosts.length > 0 ? (
+          <div class="grid grid-cols-1 gap-4">
+            {linkedPosts.map((post, i) => (
+              <PostCard
+                id={post.id}
+                slug={post.slug}
+                title={post.title}
+                description={post.description}
+                date={post.date}
+                tags={post.tags}
+                reading_time={post.reading_time}
+                delay={i * 60}
+              />
+            ))}
+          </div>
+        ) : (
+          <p class="text-sm text-muted-foreground">nenhum post encontrado.</p>
+        )}
+      </section>
+
+      <div class="mt-16 border-t border-border pt-8">
+        <a href="/projects" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          ← back to projects
+        </a>
+      </div>
+    </div>
+
+    <aside class="hidden md:block">
+      <div class="sticky top-24 flex flex-col gap-3">
+        <p class="text-sm font-medium text-muted-foreground">posts sobre esse projeto</p>
+        {linkedPosts.length > 0 ? (
+          <ul class="flex flex-col gap-2">
+            {linkedPosts.map((post) => (
+              <li>
+                <a
+                  href={`/blog/${post.slug}`}
+                  class="line-clamp-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {post.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="text-xs text-muted-foreground">nenhum post encontrado.</p>
         )}
       </div>
-
-      {(p.tags ?? []).length > 0 && (
-        <div class="mt-4 flex flex-wrap gap-2">
-          {(p.tags ?? []).map((tag: string) => <Badge variant="outline">{tag}</Badge>)}
-        </div>
-      )}
-    </header>
-
-    {p.content && (
-      <div class="prose prose-invert prose-sm mb-16 max-w-none" set:html={contentHtml} />
-    )}
-
-    {linkedPosts.length > 0 && (
-      <section id="posts">
-        <h2 class="mb-6 text-lg font-semibold">Posts sobre esse projeto</h2>
-        <div class="grid grid-cols-1 gap-4">
-          {linkedPosts.map((post, i) => (
-            <PostCard
-              id={post.id}
-              slug={post.slug}
-              title={post.title}
-              description={post.description}
-              date={post.date}
-              tags={post.tags}
-              reading_time={post.reading_time}
-              delay={i * 60}
-            />
-          ))}
-        </div>
-      </section>
-    )}
-
-    <div class="mt-16 border-t border-border pt-8">
-      <a href="/projects" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
-        ← back to projects
-      </a>
-    </div>
+    </aside>
   </div>
 </Base>

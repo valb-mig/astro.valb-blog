@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { toast } from "sonner";
+import { flashToast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -31,13 +33,16 @@ export function DeleteButton({ id, title, resource, redirectTo, label = "deletar
     const res = await fetch(`/api/${resource}/${id}`, { method: "DELETE" });
     if (res.ok) {
       if (redirectTo) {
+        flashToast("success", `"${title}" deletado.`);
         window.location.href = redirectTo;
       } else {
+        toast.success(`"${title}" deletado.`);
         document.dispatchEvent(new CustomEvent("row-deleted", { detail: { id } }));
         setOpen(false);
       }
     } else {
       setPending(false);
+      toast.error("Erro ao deletar.");
     }
   };
 

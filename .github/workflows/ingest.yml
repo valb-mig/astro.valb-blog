@@ -2,7 +2,7 @@ name: Ingest GitHub Activity
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '55 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -25,5 +25,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GH_USERNAME: ${{ secrets.GH_USERNAME }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

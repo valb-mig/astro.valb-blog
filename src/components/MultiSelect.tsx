@@ -21,12 +21,13 @@ import { Plus, X } from "lucide-react";
 type Option = { value: string; label: string };
 
 interface Props {
-  hiddenInputId: string;
+  hiddenInputId?: string;
   initialValue: string[];
   options: Option[];
   creatable?: boolean;
   placeholder?: string;
   triggerLabel?: string;
+  onChange?: (next: string[]) => void;
 }
 
 export function MultiSelect({
@@ -36,6 +37,7 @@ export function MultiSelect({
   creatable = false,
   placeholder = "Buscar...",
   triggerLabel = "adicionar",
+  onChange,
 }: Props) {
   const [value, setValue] = useState<string[]>(initialValue);
   const [open, setOpen] = useState(false);
@@ -45,8 +47,11 @@ export function MultiSelect({
 
   const commit = (next: string[]) => {
     setValue(next);
-    const hidden = document.getElementById(hiddenInputId) as HTMLInputElement | null;
-    if (hidden) hidden.value = JSON.stringify(next);
+    if (hiddenInputId) {
+      const hidden = document.getElementById(hiddenInputId) as HTMLInputElement | null;
+      if (hidden) hidden.value = JSON.stringify(next);
+    }
+    onChange?.(next);
   };
 
   const toggle = (v: string) => {

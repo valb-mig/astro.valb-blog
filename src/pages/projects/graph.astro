@@ -1,0 +1,45 @@
+---
+import Base from '../../layouts/Base.astro';
+import ProjectGraph from '../../components/ProjectGraph';
+import { db } from '../../lib/db';
+import type { Post, Project } from '../../lib/db';
+
+const [projectsRes, linksRes] = await Promise.all([
+  db.from('projects').select('id,slug,title,tags').eq('draft', false),
+  db.from('post_projects').select('project_id, posts!inner(id,slug,title,draft)'),
+]);
+
+const projects = (projectsRes.data ?? []) as Pick<Project, 'id' | 'slug' | 'title' | 'tags'>[];
+const links = (linksRes.data ?? []) as unknown as {
+  project_id: string;
+  posts: Pick<Post, 'id' | 'slug' | 'title' | 'draft'>;
+}[];
+
+const projectIds = new Set(projects.map((p) => p.id));
+const postsById = new Map<string, Pick<Post, 'id' | 'slug' | 'title'>>();
+const edges: { source: string; target: string }[] = [];
+
+for (const row of links) {
+  if (row.posts.draft || !projectIds.has(row.project_id)) continue;
+  postsById.set(row.posts.id, row.posts);
+  edges.push({ source: row.project_id, target: row.posts.id });
+}
+
+const nodes = [
+  ...projects.map((p) => ({ id: p.id, label: p.title, type: 'project' as const, slug: p.slug, tags: p.tags ?? [] })),
+  ...[...postsById.values()].map((p) => ({ id: p.id, label: p.title, type: 'post' as const, slug: p.slug })),
+];
+
+const allTags = [...new Set(projects.flatMap((p) => p.tags ?? []))].sort();
+---
+
+<Base title="Grafo — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Projects', href: '/projects' }, { label: 'Grafo' }]}>
+  <div class="mx-auto max-w-5xl px-6 py-16">
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold">Grafo de projetos</h1>
+      <p class="mt-1 text-sm text-muted-foreground">projetos e posts que citam eles, como um grafo de conexões.</p>
+    </div>
+
+    <ProjectGraph client:only="react" nodes={nodes} links={edges} tags={allTags} />
+  </div>
+</Base>

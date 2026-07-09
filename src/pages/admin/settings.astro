@@ -1,0 +1,64 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { db } from '../../lib/db';
+
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+
+const { data } = await db.from('settings').select('value').eq('key', 'llm_provider').maybeSingle();
+const currentProvider = data?.value ?? 'groq';
+---
+
+<Admin title="Settings">
+  <h1 class="mb-8 text-xl font-semibold">Settings</h1>
+
+  <form id="settings-form" class="flex max-w-sm flex-col gap-6">
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-llm-provider">provider de normalização (ingest)</Label>
+      <select id="f-llm-provider" class={selectClass}>
+        <option value="groq" selected={currentProvider === 'groq'}>groq</option>
+        <option value="gemini" selected={currentProvider === 'gemini'}>gemini</option>
+      </select>
+      <p class="text-xs text-muted-foreground">
+        modelo usado pra normalizar a atividade de GitHub em texto de post no pipeline de ingest.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <Button type="submit" id="save-btn">salvar</Button>
+    </div>
+  </form>
+</Admin>
+
+<script>
+  import { toast } from 'sonner';
+
+  const form = document.getElementById('settings-form')!;
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'salvando...';
+
+    const value = (document.getElementById('f-llm-provider') as HTMLSelectElement).value;
+
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'llm_provider', value }),
+    });
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'salvar';
+
+    if (res.ok) {
+      toast.success('Salvo.');
+    } else {
+      const { error } = await res.json();
+      toast.error(error ?? 'Erro ao salvar');
+    }
+  });
+</script>

@@ -1,0 +1,25 @@
+---
+interface Item {
+  label: string;
+  href?: string;
+}
+
+interface Props {
+  items: Item[];
+}
+
+const { items } = Astro.props;
+---
+
+<p class="text-sm text-muted-foreground">
+  {items.map((item, i) => (
+    <>
+      {item.href ? (
+        <a href={item.href} class="hover:text-foreground">{item.label}</a>
+      ) : (
+        <span>{item.label}</span>
+      )}
+      {i < items.length - 1 && <span> / </span>}
+    </>
+  ))}
+</p>

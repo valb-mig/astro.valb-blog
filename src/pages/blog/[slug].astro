@@ -28,56 +28,140 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
 
 const { data: postProjectRows } = await db
   .from('post_projects')
-  .select('projects(slug, title)')
+  .select('projects(id, slug, title)')
   .eq('post_id', p.id);
 
-type PostProjectRow = { projects: { slug: string; title: string } | null };
+type PostProjectRow = { projects: { id: string; slug: string; title: string } | null };
 const linkedProjects = ((postProjectRows ?? []) as unknown as PostProjectRow[])
   .map((row) => row.projects)
-  .filter((proj): proj is { slug: string; title: string } => proj !== null);
+  .filter((proj): proj is { id: string; slug: string; title: string } => proj !== null);
+
+const projectIds = linkedProjects.map((proj) => proj.id);
+const { data: siblingRows } = projectIds.length
+  ? await db
+      .from('post_projects')
+      .select('project_id, posts!inner(id, slug, title, date, draft)')
+      .in('project_id', projectIds)
+      .eq('posts.draft', false)
+  : { data: [] };
+
+type SiblingRow = { project_id: string; posts: { id: string; slug: string; title: string; date: string } };
+const postsByProject: Record<string, { id: string; slug: string; title: string; date: string }[]> = {};
+for (const row of (siblingRows ?? []) as unknown as SiblingRow[]) {
+  if (row.posts.id === p.id) continue;
+  (postsByProject[row.project_id] ??= []).push(row.posts);
+}
+for (const list of Object.values(postsByProject)) {
+  list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+const allSiblingPosts = (() => {
+  const seen = new Map<string, { id: string; slug: string; title: string; date: string }>();
+  for (const list of Object.values(postsByProject)) {
+    for (const sibling of list) seen.set(sibling.id, sibling);
+  }
+  return [...seen.values()].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+})();
+
+const selectedProjectSlug = Astro.url.searchParams.get('project');
+const selectedProject = linkedProjects.find((proj) => proj.slug === selectedProjectSlug);
+const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id] ?? [] : allSiblingPosts;
 ---
 
-<Base title={p.title} description={p.description} og={{ type: 'article' }}>
-  <article class="mx-auto max-w-2xl px-6 py-16">
+<Base
+  title={p.title}
+  description={p.description}
+  og={{ type: 'article' }}
+  breadcrumb={[
+    { label: 'Home', href: '/' },
+    { label: 'Blog', href: '/blog' },
+    { label: p.slug },
+  ]}
+>
+  <div class="mx-auto max-w-4xl px-6 py-16 md:grid md:grid-cols-[1fr_220px] md:gap-10">
+    <article class="max-w-2xl">
 
-    <p class="mb-8 text-sm text-muted-foreground">
-      <a href="/" class="hover:text-foreground">Home</a>
-      <span> / </span>
-      <a href="/blog" class="hover:text-foreground">Blog</a>
-      <span> / </span>
-      <span>{p.slug}</span>
-    </p>
+      <header class="mb-10 border-b border-border pb-8">
+        <h1 class="mb-3 text-3xl font-semibold leading-tight">{p.title}</h1>
+        <p class="mb-5 text-muted-foreground">{p.description}</p>
 
-    <header class="mb-10 border-b border-border pb-8">
-      <h1 class="mb-3 text-3xl font-semibold leading-tight">{p.title}</h1>
-      <p class="mb-5 text-muted-foreground">{p.description}</p>
-
-      <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-        <span>{dateStr}</span>
-        <span>{p.reading_time} min de leitura</span>
-        {p.newsletter && <Badge variant="secondary">newsletter</Badge>}
-        {linkedProjects.map((proj) => (
-          <a href={`/projects/${proj.slug}`} class="transition-colors hover:text-foreground">
-            <Badge variant="outline">{proj.title}</Badge>
-          </a>
-        ))}
-      </div>
-
-      {(p.tags ?? []).length > 0 && (
-        <div class="mt-4 flex flex-wrap gap-2">
-          {(p.tags ?? []).map((tag: string) => (
-            <a href={`/blog?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
-          ))}
+        <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          <span>{dateStr}</span>
+          <span>{p.reading_time} min de leitura</span>
+          <div class="flex flex-wrap gap-2 md:hidden">
+            {linkedProjects.map((proj) => (
+              <a href={`/projects/${proj.slug}`} class="transition-colors hover:text-foreground">
+                <Badge variant="outline">{proj.title}</Badge>
+              </a>
+            ))}
+          </div>
         </div>
-      )}
-    </header>
 
-    <div class="prose prose-invert prose-sm max-w-none" set:html={contentHtml} />
+        {(p.tags ?? []).length > 0 && (
+          <div class="mt-4 flex flex-wrap gap-2">
+            {(p.tags ?? []).map((tag: string) => (
+              <a href={`/blog?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
+            ))}
+          </div>
+        )}
+      </header>
 
-    <div class="mt-16 border-t border-border pt-8">
-      <a href="/blog" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
-        ← back to blog
-      </a>
-    </div>
-  </article>
+      <div class="prose prose-invert prose-sm max-w-none" set:html={contentHtml} />
+
+      <div class="mt-16 border-t border-border pt-8">
+        <a href="/blog" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          ← back to blog
+        </a>
+      </div>
+    </article>
+
+    {linkedProjects.length > 0 && (
+      <aside class="hidden md:block">
+        <div class="sticky top-24 flex flex-col gap-8">
+          <div>
+            <p class="mb-3 text-sm font-medium text-muted-foreground">projetos vinculados</p>
+            <div class="flex flex-col gap-1.5">
+              {linkedProjects.map((proj) => (
+                <a href={`/projects/${proj.slug}`} class="transition-colors hover:text-foreground">
+                  <Badge variant="outline">{proj.title}</Badge>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {allSiblingPosts.length > 0 && (
+            <div>
+              <p class="mb-3 text-sm font-medium text-muted-foreground">posts dos projetos vinculados</p>
+              <div class="mb-3 flex flex-wrap gap-1.5">
+                <a href={`/blog/${p.slug}`}>
+                  <Badge variant={!selectedProject ? 'default' : 'outline'}>todos</Badge>
+                </a>
+                {linkedProjects.map((proj) => (
+                  <a href={`/blog/${p.slug}?project=${proj.slug}`}>
+                    <Badge variant={selectedProject?.slug === proj.slug ? 'default' : 'outline'}>{proj.title}</Badge>
+                  </a>
+                ))}
+              </div>
+              {filteredSiblingPosts.length > 0 ? (
+                <ul class="flex flex-col gap-1.5">
+                  {filteredSiblingPosts.map((sibling) => (
+                    <li>
+                      <a
+                        href={`/blog/${sibling.slug}`}
+                        class="line-clamp-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {sibling.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p class="text-xs text-muted-foreground">nenhum post encontrado.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+    )}
+  </div>
 </Base>

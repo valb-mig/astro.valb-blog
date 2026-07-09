@@ -7,7 +7,7 @@ export const GET: APIRoute = async ({ cookies }) => {
 
   let query = db
     .from('posts')
-    .select('id,slug,title,description,date,tags,draft,newsletter,reading_time')
+    .select('id,slug,title,description,date,tags,draft,reading_time')
     .order('date', { ascending: false });
 
   if (!isAdmin) query = query.eq('draft', false);

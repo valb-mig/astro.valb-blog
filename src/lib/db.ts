@@ -9,7 +9,6 @@ export type Post = {
   date: string;
   tags: string[];
   draft: boolean;
-  newsletter: boolean;
   reading_time: number;
   created_at: string;
   updated_at: string;
@@ -25,7 +24,6 @@ export type Project = {
   tags: string[];
   status: 'active' | 'completed' | 'archived';
   repo: string | null;
-  url: string | null;
   draft: boolean;
   parent_project_id: string | null;
   created_at: string;

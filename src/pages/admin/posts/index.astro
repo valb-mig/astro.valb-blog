@@ -17,8 +17,8 @@ const { data: posts } = await db
   <div class="mb-8 flex items-center justify-between">
     <h1 class="text-xl font-semibold">Posts</h1>
     <Button asChild>
-      <a href="/admin/posts/new">
-        <Plus />
+      <a href="/admin/posts/new" class="flex items-center gap-1">
+        <Plus size={14} />
         novo post
       </a>
     </Button>

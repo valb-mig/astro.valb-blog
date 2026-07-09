@@ -1,18 +1,32 @@
-import { Octokit } from '@octokit/rest';
-import Groq from 'groq-sdk';
+import { Octokit as OctokitCore } from '@octokit/rest';
+import { throttling } from '@octokit/plugin-throttling';
+import { retry } from '@octokit/plugin-retry';
 import { db, calcReadingTime, type SourceEvent } from '../src/lib/db.ts';
+import { getLlmProvider, type LlmStrategy } from '../src/lib/llm.ts';
 
 const GH_TOKEN = process.env.GH_TOKEN;
 const GH_USERNAME = process.env.GH_USERNAME;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-if (!GH_TOKEN || !GH_USERNAME || !GROQ_API_KEY) {
-  throw new Error('Faltam env vars: GH_TOKEN, GH_USERNAME, GROQ_API_KEY');
+if (!GH_TOKEN || !GH_USERNAME) {
+  throw new Error('Faltam env vars: GH_TOKEN, GH_USERNAME');
 }
 
-const octokit = new Octokit({ auth: GH_TOKEN });
-const groq = new Groq({ apiKey: GROQ_API_KEY });
-
+// throttling/retry tratam rate limit primário e secundário (respeita
+// Retry-After em vez de estourar erro e matar a run inteira por um 403/429).
+const Octokit = OctokitCore.plugin(throttling, retry);
+const octokit = new Octokit({
+  auth: GH_TOKEN,
+  throttle: {
+    onRateLimit: (retryAfter: number, options: any) => {
+      console.warn(`Rate limit primário atingido em ${options.method} ${options.url}, retry em ${retryAfter}s`);
+      return true;
+    },
+    onSecondaryRateLimit: (retryAfter: number, options: any) => {
+      console.warn(`Rate limit secundário (abuso) em ${options.method} ${options.url}, retry em ${retryAfter}s`);
+      return true;
+    },
+  },
+});
 type NewEvent = Omit<SourceEvent, 'id' | 'created_at'>;
 
 function slugify(name: string): string {
@@ -35,14 +49,29 @@ async function uniqueProjectSlug(name: string): Promise<string> {
   }
 }
 
-// Sync diário: cria projeto pra cada repo do GitHub que ainda não tem
-// registro em `projects` (match pela coluna repo = "owner/name"). Nunca
-// sobrescreve um projeto existente — edição manual no admin nunca se perde.
-async function syncProjectsFromGithub(): Promise<void> {
-  const repos = await octokit.paginate(octokit.rest.repos.listForAuthenticatedUser, {
+async function fetchOwnedRepos() {
+  return octokit.paginate(octokit.rest.repos.listForAuthenticatedUser, {
     affiliation: 'owner',
     per_page: 100,
   });
+}
+
+async function fetchRepoReadme(owner: string, repo: string): Promise<string> {
+  try {
+    const { data } = await octokit.rest.repos.getReadme({ owner, repo });
+    return Buffer.from(data.content, 'base64').toString('utf-8');
+  } catch {
+    return '';
+  }
+}
+
+// Sync diário: cria projeto pra cada repo público do GitHub que ainda não tem
+// registro em `projects` (match pela coluna repo = "owner/name"). Nunca
+// sobrescreve um projeto existente — edição manual no admin nunca se perde.
+// Repos privados nunca entram aqui — o blog é público, não deve expor nome,
+// descrição nem URL de repositório privado.
+async function syncProjectsFromGithub(ownedRepos: Awaited<ReturnType<typeof fetchOwnedRepos>>): Promise<void> {
+  const repos = ownedRepos.filter((r) => !r.private);
 
   if (!repos.length) return;
 
@@ -59,16 +88,17 @@ async function syncProjectsFromGithub(): Promise<void> {
 
   for (const repo of newRepos) {
     const slug = await uniqueProjectSlug(repo.name);
+    const [owner, name] = repo.full_name.split('/');
+    const content = await fetchRepoReadme(owner, name);
     const { error } = await db.from('projects').insert({
       slug,
       title: repo.name,
       description: repo.description ?? '',
-      content: '',
+      content,
       date: repo.created_at ?? new Date().toISOString(),
-      tags: [],
+      tags: repo.topics ?? [],
       status: repo.archived ? 'archived' : 'active',
       repo: repo.full_name,
-      url: repo.html_url,
       draft: false,
     });
     if (error) console.warn(`Falha ao criar projeto pro repo ${repo.full_name}:`, error.message);
@@ -180,15 +210,31 @@ async function mapGithubEvent(event: {
   }
 }
 
-async function fetchRecentEvents(): Promise<NewEvent[]> {
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+// `listEventsForAuthenticatedUser` traz eventos de repos privados também
+// (o token é do próprio dono) — filtra pra `publicRepoNames` antes de
+// qualquer coisa, senão commit/PR/issue de repo privado vaza pro post público.
+async function fetchRecentEvents(publicRepoNames: Set<string>, date: string): Promise<NewEvent[]> {
+  const since = new Date(`${date}T00:00:00.000Z`);
+  const until = new Date(`${date}T23:59:59.999Z`);
   const { data } = await octokit.rest.activity.listEventsForAuthenticatedUser({
     username: GH_USERNAME!,
     per_page: 100,
   });
 
-  const recent = data.filter((e) => e.created_at && new Date(e.created_at) >= since);
-  const mapped = await Promise.all(recent.map((e) => mapGithubEvent(e as any)));
+  const recent = data.filter(
+    (e) =>
+      e.created_at &&
+      new Date(e.created_at) >= since &&
+      new Date(e.created_at) <= until &&
+      publicRepoNames.has(e.repo.name),
+  );
+  // Sequencial, não Promise.all — PushEvent dispara uma chamada à API por
+  // item (fetchPushCommits); em paralelo isso é rajada de request concorrente,
+  // gatilho clássico do rate limit secundário do GitHub.
+  const mapped: NewEvent[][] = [];
+  for (const e of recent) {
+    mapped.push(await mapGithubEvent(e as any));
+  }
   return mapped.flat();
 }
 
@@ -342,105 +388,84 @@ function buildRepoNarrativeInput(
   return input;
 }
 
-// Repo sem nenhum source_event anterior a hoje = provavelmente criado hoje.
-// Dá pro Groq um fato concreto ("criei o projeto hoje") em vez de genérico.
-async function detectNewRepos(repos: string[]): Promise<Set<string>> {
-  if (!repos.length) return new Set();
-
-  const todayStart = `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`;
-  const { data, error } = await db
-    .from('source_events')
-    .select('repo')
-    .in('repo', repos)
-    .lt('occurred_at', todayStart);
-  if (error) throw error;
-
-  const reposWithHistory = new Set((data ?? []).map((r) => r.repo));
-  return new Set(repos.filter((r) => !reposWithHistory.has(r)));
+// Compara com a data de criação real do repo no GitHub — não com o histórico
+// de `source_events` no banco. Esse histórico só existe a partir de quando o
+// pipeline passou a rodar; num backfill (ou logo após o pipeline nascer) todo
+// repo aparece "sem histórico antes da data" e seria marcado como novo, mesmo
+// tendo sido criado meses atrás.
+function detectNewRepos(repos: string[], date: string, repoCreatedAt: Map<string, string | null>): Set<string> {
+  const result = new Set<string>();
+  for (const repo of repos) {
+    const createdAt = repoCreatedAt.get(repo);
+    if (createdAt && createdAt.slice(0, 10) === date) result.add(repo);
+  }
+  return result;
 }
 
 // Descrição do repo no GitHub costuma carregar o "porquê" do projeto — a
 // única fonte pra isso além de commit messages. Só busca pros repos novos do
 // dia (baixo volume); falha isolada não derruba a run, só fica sem descrição.
 async function fetchRepoDescriptions(repos: string[]): Promise<Record<string, string | null>> {
-  const entries = await Promise.all(
-    repos.map(async (repo): Promise<[string, string | null]> => {
-      const [owner, name] = repo.split('/');
-      try {
-        const { data } = await octokit.rest.repos.get({ owner, repo: name });
-        return [repo, data.description ?? null];
-      } catch (err) {
-        console.warn(`Não consegui buscar a descrição de ${repo}:`, (err as Error).message);
-        return [repo, null];
-      }
-    }),
-  );
+  const entries: Array<[string, string | null]> = [];
+  for (const repo of repos) {
+    const [owner, name] = repo.split('/');
+    try {
+      const { data } = await octokit.rest.repos.get({ owner, repo: name });
+      entries.push([repo, data.description ?? null]);
+    } catch (err) {
+      console.warn(`Não consegui buscar a descrição de ${repo}:`, (err as Error).message);
+      entries.push([repo, null]);
+    }
+  }
   return Object.fromEntries(entries);
 }
 
-async function normalizeWithGroq(groups: Record<string, RepoGroup>): Promise<string> {
+async function normalizeActivity(llm: LlmStrategy, groups: Record<string, RepoGroup>): Promise<string> {
   const summaryLines = buildRepoSummaryLines(groups);
   const highlightLines = buildHighlightLines(groups);
 
-  const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'Você normaliza atividade técnica de GitHub em um parágrafo curto de blog pessoal, em primeira pessoa, tom direto e informal, em português do Brasil.',
-          'Não invente detalhes que não estão no resumo.',
-          'Nunca cite nomes ou mensagens de commits individuais — eles não aparecem no texto, só os totais por projeto e os destaques (release/PR) importam.',
-          'Não liste os projetos um por um em formato de lista — fale em tom corrido, como quem está contando o dia pra alguém.',
-          'Evite aberturas genéricas tipo "Hoje foi um dia produtivo" — comece pelo destaque mais concreto do dia (um release, um PR importante) se houver algum; se não houver destaque, seja específico sobre o volume real (quantos commits, em quantos projetos) em vez de frase de efeito vazia.',
-          'Máximo 4 frases.',
-        ].join(' '),
-      },
-      {
-        role: 'user',
-        content: `Resumo por projeto:\n${summaryLines.join('\n')}\n\nDestaques do dia:\n${highlightLines.length ? highlightLines.join('\n') : 'nenhum'}\n\nEscreva o parágrafo.`,
-      },
-    ],
-  });
+  const system = [
+    'Você normaliza atividade técnica de GitHub em um parágrafo curto de blog pessoal, em primeira pessoa, tom direto e informal, em português do Brasil.',
+    'Não invente detalhes que não estão no resumo.',
+    'Nunca cite nomes ou mensagens de commits individuais — eles não aparecem no texto, só os totais por projeto e os destaques (release/PR) importam.',
+    'Não liste os projetos um por um em formato de lista — fale em tom corrido, como quem está contando o dia pra alguém.',
+    'Evite aberturas genéricas tipo "Hoje foi um dia produtivo" — comece pelo destaque mais concreto do dia (um release, um PR importante) se houver algum; se não houver destaque, seja específico sobre o volume real (quantos commits, em quantos projetos) em vez de frase de efeito vazia.',
+    'Máximo 4 frases.',
+  ].join(' ');
+  const user = `Resumo por projeto:\n${summaryLines.join('\n')}\n\nDestaques do dia:\n${highlightLines.length ? highlightLines.join('\n') : 'nenhum'}\n\nEscreva o parágrafo.`;
 
-  return completion.choices[0]?.message?.content?.trim() ?? summaryLines.join('\n');
+  const text = await llm.complete({ system, user });
+  return text || summaryLines.join('\n');
 }
 
 // 1 chamada só pedindo JSON com todos os repos, em vez de 1 chamada por repo —
 // evita repetir o system prompt N vezes no mesmo dia. Se o JSON vier
 // malformado, degrada pra "sem parágrafo por repo" em vez de derrubar a run.
-async function generateRepoNarratives(groups: Record<string, RepoGroup>): Promise<Record<string, string>> {
+async function generateRepoNarratives(
+  llm: LlmStrategy,
+  groups: Record<string, RepoGroup>,
+  date: string,
+  repoCreatedAt: Map<string, string | null>,
+): Promise<Record<string, string>> {
   const repos = Object.keys(groups);
   if (!repos.length) return {};
 
-  const newRepos = await detectNewRepos(repos);
+  const newRepos = detectNewRepos(repos, date, repoCreatedAt);
   const repoDescriptions = await fetchRepoDescriptions([...newRepos]);
   const input = buildRepoNarrativeInput(groups, newRepos, repoDescriptions);
 
-  const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'Você recebe dados de atividade técnica de GitHub por projeto e devolve APENAS um objeto JSON válido, sem markdown, sem texto fora do JSON.',
-          'O objeto tem uma chave por nome de projeto (exatamente igual ao que veio no input) e o valor é um parágrafo curto (1 a 2 frases) em primeira pessoa, tom direto e informal, em português do Brasil, contando o que foi feito naquele projeto.',
-          'Use "sampleDescriptions" pra dar contexto real e específico — parafraseie o que elas indicam sobre o trabalho, mas nunca cite a string literal de uma descrição. Não cite títulos de issues, eles já aparecem em bullets logo abaixo no post.',
-          'Se "isNewProject" for true, mencione naturalmente que o projeto foi criado hoje (ex: "criei o projeto X hoje para..."). Se "repoDescription" não for null, use ele como fonte primária do propósito do projeto (é a descrição real que o usuário escreveu no GitHub); senão infira a partir de sampleDescriptions se der pra perceber algo concreto; se nenhum dos dois ajudar, só diga que criou o projeto.',
-          'Não invente detalhes que não estão nos dados do projeto.',
-          'Cite pelo nome os destaques (release/PR merged) quando existirem.',
-          'Se o projeto teve só 1 ou 2 commits e não é novo, o parágrafo pode ter só 1 frase curta.',
-        ].join(' '),
-      },
-      {
-        role: 'user',
-        content: `Dados por projeto:\n${JSON.stringify(input, null, 2)}\n\nDevolva o JSON com um parágrafo por projeto.`,
-      },
-    ],
-  });
+  const system = [
+    'Você recebe dados de atividade técnica de GitHub por projeto e devolve APENAS um objeto JSON válido, sem markdown, sem texto fora do JSON.',
+    'O objeto tem uma chave por nome de projeto (exatamente igual ao que veio no input) e o valor é um parágrafo curto (1 a 2 frases) em primeira pessoa, tom direto e informal, em português do Brasil, contando o que foi feito naquele projeto.',
+    'Use "sampleDescriptions" pra dar contexto real e específico — parafraseie o que elas indicam sobre o trabalho, mas nunca cite a string literal de uma descrição. Não cite títulos de issues, eles já aparecem em bullets logo abaixo no post.',
+    'Se "isNewProject" for true, mencione naturalmente que o projeto foi criado hoje (ex: "criei o projeto X hoje para..."). Se "repoDescription" não for null, use ele como fonte primária do propósito do projeto (é a descrição real que o usuário escreveu no GitHub); senão infira a partir de sampleDescriptions se der pra perceber algo concreto; se nenhum dos dois ajudar, só diga que criou o projeto.',
+    'Não invente detalhes que não estão nos dados do projeto.',
+    'Cite pelo nome os destaques (release/PR merged) quando existirem.',
+    'Se o projeto teve só 1 ou 2 commits e não é novo, o parágrafo pode ter só 1 frase curta.',
+  ].join(' ');
+  const user = `Dados por projeto:\n${JSON.stringify(input, null, 2)}\n\nDevolva o JSON com um parágrafo por projeto.`;
 
-  const raw = completion.choices[0]?.message?.content?.trim() ?? '';
+  const raw = await llm.complete({ system, user, json: true });
 
   try {
     const parsed = JSON.parse(raw);
@@ -450,7 +475,7 @@ async function generateRepoNarratives(groups: Record<string, RepoGroup>): Promis
     }
     return narratives;
   } catch {
-    console.warn('Groq devolveu JSON inválido pras narrativas por repo — post sai sem esses parágrafos.', raw);
+    console.warn('LLM devolveu JSON inválido pras narrativas por repo — post sai sem esses parágrafos.', raw);
     return {};
   }
 }
@@ -503,11 +528,11 @@ function buildPostContent(
   return [narrative, repoSections, buildCommitsDetailsBlock(groups)].filter(Boolean).join('\n\n---\n\n');
 }
 
-function todaySlug(): string {
-  return `atividade-${new Date().toISOString().slice(0, 10)}`;
+function slugForDate(date: string): string {
+  return `atividade-${date}`;
 }
 
-async function getOrCreatePostId(slug: string): Promise<string> {
+async function getOrCreatePostId(slug: string, date: string): Promise<string> {
   const { data: existing } = await db.from('posts').select('id').eq('slug', slug).maybeSingle();
   if (existing) return existing.id;
 
@@ -515,7 +540,7 @@ async function getOrCreatePostId(slug: string): Promise<string> {
     .from('posts')
     .insert({
       slug,
-      title: `Atividade — ${new Date().toLocaleDateString('pt-BR')}`,
+      title: `Atividade — ${new Date(`${date}T12:00:00.000Z`).toLocaleDateString('pt-BR')}`,
       description: 'Resumo automático da atividade do dia.',
       content: '',
       draft: true,
@@ -548,13 +573,34 @@ async function fetchAllEventsForPost(postId: string): Promise<SourceEvent[]> {
   return (events ?? []) as SourceEvent[];
 }
 
-async function rebuildPostContent(postId: string): Promise<number> {
+// Post do dia linkado aos projetos com atividade (match projects.repo).
+// Substitui os links a cada rebuild — reflete só os repos do dia atual.
+async function linkPostToProjects(postId: string, repos: string[]): Promise<void> {
+  await db.from('post_projects').delete().eq('post_id', postId);
+  if (!repos.length) return;
+
+  const { data: matched, error } = await db.from('projects').select('id').in('repo', repos);
+  if (error) throw error;
+  if (!matched?.length) return;
+
+  const { error: linkError } = await db
+    .from('post_projects')
+    .insert(matched.map((p) => ({ post_id: postId, project_id: p.id })));
+  if (linkError) throw linkError;
+}
+
+async function rebuildPostContent(
+  postId: string,
+  date: string,
+  repoCreatedAt: Map<string, string | null>,
+): Promise<number> {
   const allEvents = await fetchAllEventsForPost(postId);
   const groups = groupByRepo(dedupeMergeCommits(allEvents));
+  const llm = await getLlmProvider();
 
   const [narrative, repoNarratives] = await Promise.all([
-    normalizeWithGroq(groups),
-    generateRepoNarratives(groups),
+    normalizeActivity(llm, groups),
+    generateRepoNarratives(llm, groups, date, repoCreatedAt),
   ]);
   const content = buildPostContent(narrative, groups, repoNarratives);
 
@@ -564,16 +610,30 @@ async function rebuildPostContent(postId: string): Promise<number> {
     .eq('id', postId);
   if (updateError) throw updateError;
 
+  await linkPostToProjects(postId, Object.keys(groups));
+
   return allEvents.length;
+}
+
+function targetDate(): string {
+  const arg = process.argv.find((a) => a.startsWith('--date='));
+  const date = arg ? arg.slice('--date='.length) : new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`--date inválido: "${date}" (esperado YYYY-MM-DD)`);
+  return date;
 }
 
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
-  const slug = todaySlug();
+  const date = targetDate();
+  const slug = slugForDate(date);
 
-  await syncProjectsFromGithub();
+  const ownedRepos = await fetchOwnedRepos();
+  const publicRepoNames = new Set(ownedRepos.filter((r) => !r.private).map((r) => r.full_name));
+  const repoCreatedAt = new Map(ownedRepos.map((r) => [r.full_name, r.created_at]));
 
-  const newEvents = await fetchRecentEvents();
+  await syncProjectsFromGithub(ownedRepos);
+
+  const newEvents = await fetchRecentEvents(publicRepoNames, date);
   let insertedCount = 0;
 
   if (newEvents.length) {
@@ -585,7 +645,7 @@ async function main(): Promise<void> {
     insertedCount = inserted?.length ?? 0;
 
     if (insertedCount) {
-      const postId = await getOrCreatePostId(slug);
+      const postId = await getOrCreatePostId(slug, date);
       const links = inserted!.map((e) => ({ post_id: postId, event_id: e.id }));
       const { error: linkError } = await db
         .from('post_events')
@@ -596,18 +656,18 @@ async function main(): Promise<void> {
 
   if (!insertedCount && !force) {
     console.log(
-      newEvents.length ? 'Eventos encontrados já haviam sido processados (dedupe).' : 'Nenhum evento novo nas últimas 24h.',
+      newEvents.length ? 'Eventos encontrados já haviam sido processados (dedupe).' : `Nenhum evento novo em ${date}.`,
     );
     return;
   }
 
   const { data: existingPost } = await db.from('posts').select('id').eq('slug', slug).maybeSingle();
   if (!existingPost) {
-    console.log('Nada pra reconstruir — nenhum post existente hoje e nenhum evento novo.');
+    console.log(`Nada pra reconstruir — nenhum post existente em ${date} e nenhum evento novo.`);
     return;
   }
 
-  const totalEvents = await rebuildPostContent(existingPost.id);
+  const totalEvents = await rebuildPostContent(existingPost.id, date, repoCreatedAt);
   console.log(
     `Post rascunho "${slug}" atualizado com ${insertedCount} evento(s) novo(s), ${totalEvents} no total do dia.`,
   );

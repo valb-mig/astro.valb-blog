@@ -90,10 +90,6 @@ const currentProjectIds = (links ?? []).map((l) => l.project_id);
         <input id="f-draft" type="checkbox" checked={p.draft} class="accent-primary" />
         draft
       </label>
-      <label class="flex items-center gap-2 text-sm text-muted-foreground">
-        <input id="f-newsletter" type="checkbox" checked={p.newsletter} class="accent-primary" />
-        newsletter
-      </label>
     </div>
 
     <div class="flex flex-col gap-1.5">
@@ -108,20 +104,19 @@ const currentProjectIds = (links ?? []).map((l) => l.project_id);
       <div class="ml-auto">
         <DeleteButton id={p.id} title={p.title} resource="posts" redirectTo="/admin/posts" client:load />
       </div>
-      <p id="save-error" class="hidden w-full text-sm text-destructive"></p>
     </div>
   </form>
 </Admin>
 
 <script>
+  import { toast } from 'sonner';
+
   const postId = (document.getElementById('post-id') as HTMLInputElement).value;
   const form = document.getElementById('post-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
-  const saveError = document.getElementById('save-error')!;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    saveError.classList.add('hidden');
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
@@ -135,7 +130,6 @@ const currentProjectIds = (links ?? []).map((l) => l.project_id);
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       tags,
       draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
-      newsletter: (document.getElementById('f-newsletter') as HTMLInputElement).checked,
       projectIds,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
@@ -147,15 +141,12 @@ const currentProjectIds = (links ?? []).map((l) => l.project_id);
     });
 
     if (res.ok) {
-      saveBtn.textContent = 'salvo!';
-      setTimeout(() => {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'salvar alterações';
-      }, 1500);
+      toast.success('Alterações salvas.');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'salvar alterações';
     } else {
       const { error } = await res.json();
-      saveError.textContent = error ?? 'Erro ao salvar';
-      saveError.classList.remove('hidden');
+      toast.error(error ?? 'Erro ao salvar');
       saveBtn.disabled = false;
       saveBtn.textContent = 'salvar alterações';
     }
