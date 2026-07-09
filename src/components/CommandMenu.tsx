@@ -73,7 +73,7 @@ export function CommandMenu() {
     if (item.href) window.location.href = item.href;
   };
 
-  const groups = (["post", "project", "nav", "action"] as const)
+  const groups = (["nav", "post", "project", "action"] as const)
     .map((type) => ({ type, entries: items.filter((i) => i.type === type) }))
     .filter((g) => g.entries.length > 0);
 
