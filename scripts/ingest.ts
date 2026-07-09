@@ -548,6 +548,22 @@ async function fetchAllEventsForPost(postId: string): Promise<SourceEvent[]> {
   return (events ?? []) as SourceEvent[];
 }
 
+// Post do dia linkado aos projetos com atividade (match projects.repo).
+// Substitui os links a cada rebuild — reflete só os repos do dia atual.
+async function linkPostToProjects(postId: string, repos: string[]): Promise<void> {
+  await db.from('post_projects').delete().eq('post_id', postId);
+  if (!repos.length) return;
+
+  const { data: matched, error } = await db.from('projects').select('id').in('repo', repos);
+  if (error) throw error;
+  if (!matched?.length) return;
+
+  const { error: linkError } = await db
+    .from('post_projects')
+    .insert(matched.map((p) => ({ post_id: postId, project_id: p.id })));
+  if (linkError) throw linkError;
+}
+
 async function rebuildPostContent(postId: string): Promise<number> {
   const allEvents = await fetchAllEventsForPost(postId);
   const groups = groupByRepo(dedupeMergeCommits(allEvents));
@@ -563,6 +579,8 @@ async function rebuildPostContent(postId: string): Promise<number> {
     .update({ content, reading_time: calcReadingTime(content) })
     .eq('id', postId);
   if (updateError) throw updateError;
+
+  await linkPostToProjects(postId, Object.keys(groups));
 
   return allEvents.length;
 }
