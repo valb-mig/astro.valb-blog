@@ -9,7 +9,6 @@ export type Post = {
   date: string;
   tags: string[];
   draft: boolean;
-  newsletter: boolean;
   reading_time: number;
   created_at: string;
   updated_at: string;
