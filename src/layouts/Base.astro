@@ -32,7 +32,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="canonical" href={canonicalURL} />
 
-    <title>{title}</title>
+    <title>~/{title}</title>
     <meta name="description" content={description} />
 
     <!-- Open Graph -->
@@ -52,7 +52,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
-  <body>
+  <body class="flex min-h-screen flex-col">
     <Header />
     {breadcrumb && (
       <div class="border-b border-border">
@@ -62,7 +62,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       </div>
     )}
     <CommandMenu client:load />
-    <main>
+    <main class="flex-1">
       <slot />
     </main>
     <Footer />

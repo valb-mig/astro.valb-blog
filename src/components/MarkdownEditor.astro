@@ -2,15 +2,36 @@
 interface Props {
   initialValue?: string;
   name?: string;
+  repos?: string[];
 }
-const { initialValue = '', name = 'content' } = Astro.props;
+const { initialValue = '', name = 'content', repos = [] } = Astro.props;
 ---
 
-<div class="md-editor-root">
+<div class="md-editor-root" data-repos={JSON.stringify(repos)}>
   <div class="md-editor-tabs">
     <button type="button" class="md-tab active" data-tab="edit">edit</button>
     <button type="button" class="md-tab" data-tab="preview">preview</button>
   </div>
+
+  <div class="md-editor-toolbar">
+    {repos.length > 0 && (
+      <button type="button" id="md-insert-event-btn" class="md-toolbar-btn">+ evento</button>
+    )}
+    <button type="button" id="md-insert-image-btn" class="md-toolbar-btn">+ imagem</button>
+  </div>
+
+  <dialog id="md-event-dialog">
+    <div class="md-event-dialog-header">
+      {repos.length > 1 && (
+        <select id="md-event-repo">
+          {repos.map((repo) => <option value={repo}>{repo}</option>)}
+        </select>
+      )}
+      <input id="md-event-search" type="text" placeholder="buscar..." />
+      <button type="button" id="md-event-dialog-close">fechar</button>
+    </div>
+    <div id="md-event-list"></div>
+  </dialog>
 
   <div class="md-editor-panels">
     <div id="md-editor-panel" class="md-panel">
@@ -56,6 +77,81 @@ const { initialValue = '', name = 'content' } = Astro.props;
   transition: color 0.2s, border-color 0.2s;
 }
 .md-tab.active { color: var(--foreground); border-bottom-color: var(--foreground); }
+
+.md-editor-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  padding: 0.5rem 0.75rem;
+}
+
+.md-toolbar-btn {
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 4px);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.md-toolbar-btn:hover { color: var(--foreground); border-color: var(--foreground); }
+
+#md-event-dialog {
+  width: min(480px, 90vw);
+  max-height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0;
+}
+#md-event-dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+
+.md-event-dialog-header {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.md-event-dialog-header select,
+.md-event-dialog-header input {
+  font-family: inherit;
+  font-size: 0.8125rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 4px);
+  padding: 0.3rem 0.5rem;
+  color: var(--foreground);
+}
+.md-event-dialog-header input { flex: 1; }
+
+#md-event-list {
+  overflow-y: auto;
+  max-height: calc(70vh - 3rem);
+}
+
+.md-event-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  color: var(--foreground);
+}
+.md-event-item:hover { background: var(--accent); }
+.md-event-item .md-event-type {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+}
 
 .md-editor-panels {
   display: grid;
@@ -259,4 +355,68 @@ const { initialValue = '', name = 'content' } = Astro.props;
 
   // Expose view for external access if needed
   (window as any).__mdEditor = view;
+
+  function insertAtCursor(text: string) {
+    const pos = view.state.selection.main.head;
+    view.dispatch({ changes: { from: pos, insert: text } });
+    view.focus();
+  }
+
+  // "+ imagem": prompt de URL/alt, sem upload (não há storage configurado)
+  document.getElementById('md-insert-image-btn')?.addEventListener('click', () => {
+    const imgUrl = prompt('URL da imagem:');
+    if (!imgUrl) return;
+    const alt = prompt('Texto alternativo (opcional):') ?? '';
+    insertAtCursor(`![${alt}](${imgUrl})`);
+  });
+
+  // "+ evento": dialog lista source_events do(s) repo(s) vinculado(s) ao post
+  const repos: string[] = JSON.parse(document.querySelector('.md-editor-root')?.getAttribute('data-repos') ?? '[]');
+  const eventDialog = document.getElementById('md-event-dialog') as HTMLDialogElement | null;
+  const eventList = document.getElementById('md-event-list');
+  const eventSearch = document.getElementById('md-event-search') as HTMLInputElement | null;
+  const eventRepoSelect = document.getElementById('md-event-repo') as HTMLSelectElement | null;
+
+  type SourceEvent = { id: string; type: string; title: string; url: string; occurred_at: string };
+  let loadedEvents: SourceEvent[] = [];
+
+  function renderEventList(filter: string) {
+    if (!eventList) return;
+    const term = filter.trim().toLowerCase();
+    const filtered = term ? loadedEvents.filter((e) => e.title.toLowerCase().includes(term)) : loadedEvents;
+
+    eventList.innerHTML = filtered.length
+      ? ''
+      : '<p style="padding: 0.75rem; font-size: 0.8125rem; color: var(--muted-foreground);">nenhum evento encontrado.</p>';
+
+    filtered.forEach((event) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'md-event-item';
+      btn.innerHTML = `<span class="md-event-type">${event.type}</span><br>${event.title}`;
+      btn.addEventListener('click', () => {
+        insertAtCursor(`> 🔧 **${event.type}** — [${event.title}](${event.url})\n`);
+        eventDialog?.close();
+      });
+      eventList.appendChild(btn);
+    });
+  }
+
+  async function loadEventsForRepo(repo: string) {
+    if (eventList) eventList.innerHTML = '<p style="padding: 0.75rem; font-size: 0.8125rem; color: var(--muted-foreground);">carregando...</p>';
+    const res = await fetch(`/api/events?repo=${encodeURIComponent(repo)}`);
+    loadedEvents = res.ok ? await res.json() : [];
+    renderEventList(eventSearch?.value ?? '');
+  }
+
+  document.getElementById('md-insert-event-btn')?.addEventListener('click', () => {
+    if (!repos.length) return;
+    const repo = eventRepoSelect?.value ?? repos[0];
+    loadEventsForRepo(repo);
+    eventDialog?.showModal();
+  });
+
+  document.getElementById('md-event-dialog-close')?.addEventListener('click', () => eventDialog?.close());
+  eventRepoSelect?.addEventListener('change', () => loadEventsForRepo(eventRepoSelect.value));
+  eventSearch?.addEventListener('input', () => renderEventList(eventSearch.value));
 </script>

@@ -151,7 +151,7 @@ export default function ProjectGraph({ nodes, links, tags }: Props) {
           linkWidth={1}
           onNodeHover={(node: any) => setHoverId(node ? node.id : null)}
           onNodeClick={(node: any) => {
-            const href = node.type === 'project' ? `/projects/${node.slug}` : `/blog/${node.slug}`;
+            const href = node.type === 'project' ? `/projects/${node.slug}` : `/posts/${node.slug}`;
             window.location.href = href;
           }}
           nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {

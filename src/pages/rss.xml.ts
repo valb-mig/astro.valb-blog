@@ -10,14 +10,14 @@ export async function GET(context: { site: URL }) {
     .order('date', { ascending: false });
 
   return rss({
-    title: '~/blog',
+    title: '~/posts',
     description: 'Posts pessoais sobre dev e o que aparecer.',
     site: context.site,
     items: (posts ?? []).map((post: Pick<Post, 'slug'|'title'|'description'|'date'|'tags'>) => ({
       title: post.title,
       description: post.description,
       pubDate: new Date(post.date),
-      link: `/blog/${post.slug}/`,
+      link: `/posts/${post.slug}/`,
       categories: post.tags,
     })),
     customData: `<language>pt-BR</language>`,

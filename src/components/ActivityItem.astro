@@ -1,0 +1,48 @@
+---
+import { Badge } from '@/components/ui/badge';
+import { GitCommitHorizontal, GitPullRequest, CircleDot, Tag as TagIcon } from 'lucide-react';
+import type { SourceEvent } from '../lib/db';
+
+interface Props {
+  event: SourceEvent;
+  delay?: number;
+}
+
+const { event, delay = 0 } = Astro.props;
+
+const typeMeta: Record<SourceEvent['type'], { label: string; icon: typeof GitCommitHorizontal }> = {
+  commit: { label: 'commit', icon: GitCommitHorizontal },
+  issue: { label: 'issue', icon: CircleDot },
+  pull_request: { label: 'pull request', icon: GitPullRequest },
+  release: { label: 'release', icon: TagIcon },
+};
+
+const { label, icon: Icon } = typeMeta[event.type];
+
+const timeStr = new Date(event.occurred_at).toLocaleTimeString('pt-BR', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+---
+
+<a
+  href={event.url}
+  target="_blank"
+  rel="noopener noreferrer"
+  class="fade-in group flex items-start gap-3 border-b border-border py-3 last:border-0"
+  style={`transition-delay: ${delay}ms`}
+>
+  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+
+  <div class="flex min-w-0 flex-1 flex-col gap-1">
+    <p class="truncate text-sm transition-colors group-hover:text-foreground/80">
+      {event.title}
+    </p>
+    <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <Badge variant="outline">{label}</Badge>
+      <span>{event.repo}</span>
+      <span>·</span>
+      <span>{timeStr}</span>
+    </div>
+  </div>
+</a>

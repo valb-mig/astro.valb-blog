@@ -1,0 +1,49 @@
+---
+interface Props {
+  languages?: Record<string, number> | null;
+  max?: number;
+}
+
+const { languages, max = 4 } = Astro.props;
+
+const LANGUAGE_COLORS: Record<string, string> = {
+  TypeScript: '#3178c6',
+  JavaScript: '#f1e05a',
+  Python: '#3572A5',
+  PHP: '#4F5D95',
+  HTML: '#e34c26',
+  CSS: '#563d7c',
+  Astro: '#ff5a03',
+  Shell: '#89e051',
+  Go: '#00ADD8',
+  Rust: '#dea584',
+  Java: '#b07219',
+  Ruby: '#701516',
+  'C++': '#f34b7d',
+  C: '#555555',
+  'C#': '#178600',
+  Vue: '#41b883',
+  Markdown: '#083fa1',
+};
+
+const DEFAULT_COLOR = '#6b7280';
+
+const topLanguages = Object.entries(languages ?? {})
+  .sort(([, a], [, b]) => b - a)
+  .slice(0, max);
+---
+
+{topLanguages.length > 0 && (
+  <div class="flex flex-wrap items-center gap-2">
+    {topLanguages.map(([name, percent]) => (
+      <span class="flex items-center gap-1 text-xs text-muted-foreground">
+        <span
+          class="size-2 shrink-0 rounded-full"
+          style={`background-color: ${LANGUAGE_COLORS[name] ?? DEFAULT_COLOR}`}
+        />
+        {name}
+        <span class="opacity-60">{percent.toFixed(0)}%</span>
+      </span>
+    ))}
+  </div>
+)}

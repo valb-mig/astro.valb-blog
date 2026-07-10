@@ -9,13 +9,13 @@ import type { Project } from '../../lib/db';
 const [projectsRes, postProjectRes] = await Promise.all([
   db
     .from('projects')
-    .select('id,slug,title,description,date,tags,status,repo')
+    .select('id,slug,title,description,date,tags,status,repo,languages')
     .eq('draft', false)
     .order('date', { ascending: false }),
   db.from('post_projects').select('project_id, posts!inner(draft)').eq('posts.draft', false),
 ]);
 
-const projects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'>[];
+const projects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'|'languages'>[];
 
 const postCountMap: Record<string, number> = {};
 ((postProjectRes.data ?? []) as unknown as { project_id: string }[]).forEach((row) => {
@@ -67,6 +67,7 @@ const sections = [
                 tags={p.tags}
                 status={p.status}
                 repo={p.repo ?? undefined}
+                languages={p.languages}
                 postCount={postCountMap[p.id] ?? 0}
                 delay={i * 80}
               />

@@ -4,6 +4,7 @@ import { db } from '../../../lib/db';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DeleteButton } from '@/components/DeleteButton';
+import { SelectField } from '@/components/SelectField';
 
 const PAGE_SIZE = 30;
 const page = Math.max(1, Number(Astro.url.searchParams.get('page') ?? '1') || 1);
@@ -31,8 +32,7 @@ const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   release: 'default',
 };
 
-const selectClass =
-  'h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+const repoOptions = [{ value: '__all__', label: 'todos os repos' }, ...repos.map((repo) => ({ value: repo, label: repo }))];
 
 function pageHref(p: number): string {
   return `?page=${p}${repoFilter ? `&repo=${encodeURIComponent(repoFilter)}` : ''}`;
@@ -43,16 +43,14 @@ function pageHref(p: number): string {
   <div class="mb-8 flex items-center justify-between">
     <h1 class="text-xl font-semibold">Events</h1>
     <form method="GET">
-      <select name="repo" id="repo-filter" class={selectClass}>
-        <option value="">todos os repos</option>
-        {
-          repos.map((repo) => (
-            <option value={repo} selected={repo === repoFilter}>
-              {repo}
-            </option>
-          ))
-        }
-      </select>
+      <input type="hidden" name="repo" id="repo-filter" value={repoFilter} />
+      <SelectField
+        client:load
+        hiddenInputId="repo-filter"
+        initialValue={repoFilter || '__all__'}
+        options={repoOptions}
+        className="w-56"
+      />
     </form>
   </div>
 
@@ -128,7 +126,9 @@ function pageHref(p: number): string {
     });
 
     document.getElementById('repo-filter')?.addEventListener('change', (e) => {
-      (e.target as HTMLSelectElement).form?.submit();
+      const el = e.target as HTMLInputElement;
+      if (el.value === '__all__') el.value = '';
+      el.form?.submit();
     });
   </script>
 </Admin>

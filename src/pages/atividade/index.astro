@@ -1,0 +1,83 @@
+---
+import Base from '../../layouts/Base.astro';
+import ActivityItem from '../../components/ActivityItem.astro';
+import { Button } from '@/components/ui/button';
+import { db } from '../../lib/db';
+import type { SourceEvent } from '../../lib/db';
+
+const PAGE_SIZE = 40;
+const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1', 10) || 1);
+const from = (page - 1) * PAGE_SIZE;
+const to = from + PAGE_SIZE - 1;
+
+const { data, count } = await db
+  .from('source_events')
+  .select('id,type,repo,url,title,occurred_at', { count: 'exact' })
+  .order('occurred_at', { ascending: false })
+  .range(from, to);
+
+const events = (data ?? []) as Pick<SourceEvent, 'id' | 'type' | 'repo' | 'url' | 'title' | 'occurred_at'>[];
+const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+
+// Agrupamento por dia calendário UTC — mesma convenção do slug atividade-YYYY-MM-DD no ingest.
+const groups: { day: string; events: typeof events }[] = [];
+for (const event of events) {
+  const day = event.occurred_at.slice(0, 10);
+  const lastGroup = groups[groups.length - 1];
+  if (lastGroup?.day === day) {
+    lastGroup.events.push(event);
+  } else {
+    groups.push({ day, events: [event] });
+  }
+}
+
+function formatDay(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+---
+
+<Base title="Atividade — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Atividade' }]}>
+  <div class="mx-auto max-w-3xl px-6 py-16">
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold">Atividade</h1>
+      <p class="mt-1 text-sm text-muted-foreground">commits, issues, PRs e releases recentes.</p>
+    </div>
+
+    {groups.length > 0 ? (
+      <div class="flex flex-col gap-8">
+        {groups.map((group) => (
+          <section>
+            <h2 class="mb-2 text-sm font-medium capitalize text-muted-foreground">
+              {formatDay(group.day)}
+            </h2>
+            <div class="flex flex-col">
+              {group.events.map((event, i) => (
+                <ActivityItem event={event as SourceEvent} delay={i * 20} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    ) : (
+      <p class="mt-8 text-sm text-muted-foreground">nenhuma atividade encontrada.</p>
+    )}
+
+    {totalPages > 1 && (
+      <div class="mt-10 flex items-center justify-between border-t border-border pt-6">
+        <Button variant="outline" size="sm" disabled={page <= 1} asChild={page > 1}>
+          {page > 1 ? <a href={`/atividade?page=${page - 1}`}>← anterior</a> : <span>← anterior</span>}
+        </Button>
+        <span class="text-xs text-muted-foreground">página {page} de {totalPages}</span>
+        <Button variant="outline" size="sm" disabled={page >= totalPages} asChild={page < totalPages}>
+          {page < totalPages ? <a href={`/atividade?page=${page + 1}`}>próxima →</a> : <span>próxima →</span>}
+        </Button>
+      </div>
+    )}
+  </div>
+</Base>

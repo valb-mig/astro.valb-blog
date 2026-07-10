@@ -2,6 +2,7 @@
 import Admin from '../../../layouts/Admin.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { MultiSelect } from '@/components/MultiSelect';
+import { SwitchField } from '@/components/SwitchField';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,11 @@ const projectOptions = (allProjects ?? []).map((pr) => ({ value: pr.id, label: p
 
 const { data: links } = await db.from('post_projects').select('project_id').eq('post_id', p.id);
 const currentProjectIds = (links ?? []).map((l) => l.project_id);
+
+const { data: linkedProjectRepos } = currentProjectIds.length
+  ? await db.from('projects').select('repo').in('id', currentProjectIds).not('repo', 'is', null)
+  : { data: [] };
+const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as string))];
 ---
 
 <Admin title={`Editar: ${p.title}`}>
@@ -86,20 +92,21 @@ const currentProjectIds = (links ?? []).map((l) => l.project_id);
     </div>
 
     <div class="flex gap-6">
-      <label class="flex items-center gap-2 text-sm text-muted-foreground">
-        <input id="f-draft" type="checkbox" checked={p.draft} class="accent-primary" />
-        draft
-      </label>
+      <div class="flex items-center gap-2.5">
+        <input type="hidden" id="f-draft" value={String(p.draft)} />
+        <SwitchField client:load hiddenInputId="f-draft" initialChecked={p.draft} />
+        <Label htmlFor="f-draft">draft</Label>
+      </div>
     </div>
 
     <div class="flex flex-col gap-1.5">
       <Label>conteúdo (markdown)</Label>
-      <MarkdownEditor name="content" initialValue={p.content} />
+      <MarkdownEditor name="content" initialValue={p.content} repos={repos} />
     </div>
 
     <div class="flex flex-wrap items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar alterações</Button>
-      <a href={`/blog/${p.slug}`} target="_blank" class="text-sm text-muted-foreground hover:text-foreground">ver post ↗</a>
+      <a href={`/posts/${p.slug}`} target="_blank" class="text-sm text-muted-foreground hover:text-foreground">ver post ↗</a>
       <a href="/admin/posts" class="text-sm text-muted-foreground hover:text-foreground">voltar</a>
       <div class="ml-auto">
         <DeleteButton id={p.id} title={p.title} resource="posts" redirectTo="/admin/posts" client:load />
@@ -129,7 +136,7 @@ const currentProjectIds = (links ?? []).map((l) => l.project_id);
       description: (document.getElementById('f-description') as HTMLInputElement).value,
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       tags,
-      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
       projectIds,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };

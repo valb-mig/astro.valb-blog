@@ -8,10 +8,8 @@ por uma área `/admin`, com objetivo final de virar um "activity feed" que se
 alimenta sozinho da atividade de GitHub do usuário (commits/issues/PRs
 normalizados por IA viram post de blog).
 
-**Atenção:** o `CLAUDE.md` na raiz do repo ainda descreve a arquitetura antiga
-(content collections estáticas, CSS custom properties, JetBrains Mono, sem
-Supabase). Está desatualizado desde a migração (commit `f23cb19`) — usar este
-CONTEXT.md como fonte de verdade até alguém reescrever o CLAUDE.md.
+`CLAUDE.md` na raiz foi reescrito em 2026-07-10 pra refletir a arquitetura
+atual (SSR+Supabase) — antes descrevia content collections estáticas.
 
 ## Stack
 
@@ -63,7 +61,7 @@ Tipos TypeScript centralizados em `src/lib/db.ts`.
 | Rota | Arquivo |
 |---|---|
 | `/` | `src/pages/index.astro` — hero + posts recentes + projetos ativos |
-| `/blog`, `/blog/[slug]` | `src/pages/blog/` |
+| `/posts`, `/posts/[slug]` | `src/pages/posts/` (renomeado de `/blog` em 2026-07-10) |
 | `/projects`, `/projects/[slug]` | `src/pages/projects/` |
 | `/about` | `src/pages/about.astro` |
 | `/rss.xml` | `src/pages/rss.xml.ts` |
@@ -131,9 +129,13 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
   criar/editar posts pelo próprio blog, sem editar `.md` local. (commit `f23cb19`)
 - **`@astrojs/vercel@8.x` fixo** — v10 requer Astro 6; projeto está em Astro 5.
 - **Event-sourcing genérico pra atividade** (`source_events`) em vez de
-  schema GitHub-específico — usuário pretende trocar a fonte de dados (API
-  GitHub → leitura de `.git` local) no futuro; só `type: commit` sobrevive
-  nessa troca.
+  schema GitHub-específico — permitiu trocar a fonte de dados sem migração
+  (ver decisão de 2026-07-10 abaixo).
+- **Ingest trocado de GitHub Events API pra `git log` local** (2026-07-10):
+  `syncRepoMirror`/`fetchCommitsFromGitLog` em `ingest.ts`, mirror bare em
+  `.ingest-cache/` (`--depth 100`, não `--shallow-since` — bug do git client
+  contra o smart-HTTP do GitHub). Só `type: commit` sobrevive; issue/PR/release
+  não são mais capturados (de propósito).
 - **Sem Next.js** — decisão explícita de manter Astro; migrar seria overkill
   pra projeto solo/baixo tráfego e reescreveria middleware/auth/admin que já
   funciona.
@@ -142,11 +144,18 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
   a estética terminal antiga. Tailwind v4 + shadcn/ui, fonte trocada pra Geist.
   **Essa decisão já foi implementada** (commits `e356b5f` → `236b660`) —
   diferente do que a memória anterior registrava.
-- **Comentários/reações anônimos** (decisão tomada, ainda não implementada):
-  fingerprint hash (IP+UA) com unique `(post_id, emoji, fingerprint)` pra
-  reação; comentário sem fingerprint unique, só rate-limit.
-- **Wakatime**: sem storage, sem entrar no ingest — seria widget com rota
-  própria fazendo proxy com cache curto (~5min). Ainda não implementado.
+- **Reações anônimas** (implementado 2026-07-10): fingerprint hash
+  sha256(IP+UA+salt) em `src/lib/reactions.ts`; unique
+  `(post_id, emoji, fingerprint)`; POST faz toggle (liga/desliga), rate-limit
+  em memória (10 toggles/min por fingerprint) contra clique repetido/script.
+- **Comentários anônimos: implementados e revertidos no mesmo dia**
+  (2026-07-10) — usuário decidiu não lidar com moderação (nomes ofensivos,
+  spam, bots de propaganda). `post_comments` foi dropada, código removido.
+  Não reabrir sem pedido explícito do usuário.
+- **Wakatime** (implementado 2026-07-10): sem storage, sem entrar no ingest —
+  widget SSR com rota própria (`/api/wakatime`) fazendo proxy com cache em
+  memória (~5min). Ficou primeiro em `/blog`, movido pra dentro do hero/bio
+  da home em 2026-07-10 (usuário pediu, tirado do `/posts`).
 - **Post↔Projeto N:N via tabela de junção** (2026-07-08) — em vez de array
   de slugs em `posts.project`, decisão explícita do usuário por
   normalização/query reversa mais fácil ("quais posts citam esse projeto").
@@ -161,31 +170,33 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
 
 **Pronto:**
 - Migração SSR+Supabase completa (schema, CRUD, auth admin)
-- Pipeline de ingest GitHub→Groq→Supabase rodando via GH Actions, com
-  parágrafo por repo + sync diário de projetos
+- Pipeline de ingest via GH Actions: sync diário de projetos, refresh de
+  `languages` por repo, leitura de `git log` local (não mais GitHub Events
+  API), parágrafo por repo via LLM pluggable (Groq/Gemini com fallback)
 - Refactor visual pra Tailwind v4 + shadcn/ui (componentes, Header, Footer,
   cards, CommandMenu, DeleteButton)
 - Command palette (Ctrl+K) via `/api/command-items`
 - Post↔Projeto N:N (`post_projects`) com multi-select no admin pra tags e
-  projetos — projetos vêm da tabela `projects`, sincronizada automaticamente
-  do GitHub (44 repos sincronizados na primeira run)
+  projetos
+- Página `/atividade` (feed paginado de `source_events`)
+- Reações emoji em posts (toggle + rate-limit por fingerprint)
+- Widget Wakatime na home (dentro do hero/bio, não mais em `/posts`)
+- Badges de linguagem/stack por projeto em `/projects` (`projects.languages`)
+- Suporte a projetos pessoais sem repo GitHub (já funcionava end-to-end,
+  confirmado 2026-07-10)
+- Editor de post: embed de evento específico (commit/issue/PR do repo
+  vinculado) + embed de imagem por URL
 
 **Em andamento / não confirmado como completo:**
-- Tabelas do Supabase (`posts`, `projects`, `source_events`, `post_events`)
-  — `supabase-schema.sql` foi removido do repo (commit `236b660`, "usado só
-  como referência local"); não há mais SQL versionado, confirmar se as
-  tabelas já existem no Supabase real antes de assumir que sim.
-- `.env` de produção (Supabase, admin, `SESSION_SECRET`, GitHub, Groq) — não
-  verificado nesta sessão.
-- `site` em `astro.config.mjs` ainda é `'https://fake'`.
+- Tabelas do Supabase — sem SQL versionado no repo (`supabase-schema.sql`
+  removido), tabelas novas (`post_reactions`, `post_comments`,
+  `projects.languages`) criadas manualmente via SQL passado durante a sessão
+- `.env` de produção (deploy/Vercel/secrets do GH Actions) — não verificado
+- `site` em `astro.config.mjs` ainda é `'https://fake'`
 
-**Não implementado ainda (do refactor grande, ver TODO.md):**
-- Página de "atividade" (feed baseado em `source_events`/posts de atividade)
-- Reações/comentários anônimos em posts
-- Widget Wakatime
-- Aba "Sobre mim" com fotos reais (hoje é placeholder/avatar)
-- Suporte a projetos pessoais fora do GitHub (sync hoje só cobre repos reais)
-- Stack/linguagens detectadas de repositórios em `/projects`
+**Não implementado ainda:**
+- Aba "Sobre mim" com fotos reais — bloqueado, esperando o usuário mandar as
+  fotos
 
 **Ideia descartada:** publicação no Instagram — removida do escopo em
 2026-07-08. Código do scaffold (`src/pages/api/instagram-post.ts`) ainda

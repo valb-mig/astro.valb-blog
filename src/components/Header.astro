@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Rss, Settings, Search } from 'lucide-react';
 
 const navItems = [
-  { label: 'Blog', href: '/blog' },
+  { label: 'Posts', href: '/posts' },
   { label: 'Projects', href: '/projects' },
+  { label: 'Atividade', href: '/atividade' },
   { label: 'About', href: '/about' },
 ];
 
@@ -14,7 +15,7 @@ const current = Astro.url.pathname;
 <header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
   <div class="mx-auto grid h-16 max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-6">
     <div class="flex items-center gap-5">
-      <a href="/" class="text-sm font-semibold">valb</a>
+      <a href="/" class="text-sm font-semibold">~/</a>
       <nav class="flex items-center gap-5 text-sm" aria-label="Navegação principal">
         {navItems.map(({ label, href }) => {
           const isActive = current === href || current.startsWith(href + '/');

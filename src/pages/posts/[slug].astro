@@ -1,8 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { Badge } from '@/components/ui/badge';
+import { ReactionBar } from '@/components/ReactionBar';
 import { db } from '../../lib/db';
 import type { Post } from '../../lib/db';
+import { REACTION_EMOJIS, fingerprint } from '../../lib/reactions';
 import { marked } from 'marked';
 
 const { slug } = Astro.params;
@@ -14,7 +16,7 @@ const { data: post, error } = await db
   .eq('draft', false)
   .single();
 
-if (error || !post) return Astro.redirect('/blog');
+if (error || !post) return Astro.redirect('/posts');
 
 const p = post as Post;
 
@@ -66,6 +68,20 @@ const allSiblingPosts = (() => {
 const selectedProjectSlug = Astro.url.searchParams.get('project');
 const selectedProject = linkedProjects.find((proj) => proj.slug === selectedProjectSlug);
 const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id] ?? [] : allSiblingPosts;
+
+const { data: reactionRows } = await db.from('post_reactions').select('emoji, fingerprint').eq('post_id', p.id);
+const fp = fingerprint(Astro);
+const reactionCounts: Record<string, number> = {};
+const reactedByFp: Record<string, boolean> = {};
+for (const emoji of REACTION_EMOJIS) {
+  reactionCounts[emoji] = 0;
+  reactedByFp[emoji] = false;
+}
+for (const row of reactionRows ?? []) {
+  reactionCounts[row.emoji] = (reactionCounts[row.emoji] ?? 0) + 1;
+  if (row.fingerprint === fp) reactedByFp[row.emoji] = true;
+}
+
 ---
 
 <Base
@@ -74,7 +90,7 @@ const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id
   og={{ type: 'article' }}
   breadcrumb={[
     { label: 'Home', href: '/' },
-    { label: 'Blog', href: '/blog' },
+    { label: 'Posts', href: '/posts' },
     { label: p.slug },
   ]}
 >
@@ -100,7 +116,7 @@ const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id
         {(p.tags ?? []).length > 0 && (
           <div class="mt-4 flex flex-wrap gap-2">
             {(p.tags ?? []).map((tag: string) => (
-              <a href={`/blog?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
+              <a href={`/posts?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
             ))}
           </div>
         )}
@@ -108,9 +124,13 @@ const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id
 
       <div class="prose prose-invert prose-sm max-w-none" set:html={contentHtml} />
 
+      <div class="mt-10 border-t border-border pt-6">
+        <ReactionBar client:load postId={p.id} initialCounts={reactionCounts} initialReacted={reactedByFp} />
+      </div>
+
       <div class="mt-16 border-t border-border pt-8">
-        <a href="/blog" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
-          ← back to blog
+        <a href="/posts" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          ← back to posts
         </a>
       </div>
     </article>
@@ -133,11 +153,11 @@ const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id
             <div>
               <p class="mb-3 text-sm font-medium text-muted-foreground">posts dos projetos vinculados</p>
               <div class="mb-3 flex flex-wrap gap-1.5">
-                <a href={`/blog/${p.slug}`}>
+                <a href={`/posts/${p.slug}`}>
                   <Badge variant={!selectedProject ? 'default' : 'outline'}>todos</Badge>
                 </a>
                 {linkedProjects.map((proj) => (
-                  <a href={`/blog/${p.slug}?project=${proj.slug}`}>
+                  <a href={`/posts/${p.slug}?project=${proj.slug}`}>
                     <Badge variant={selectedProject?.slug === proj.slug ? 'default' : 'outline'}>{proj.title}</Badge>
                   </a>
                 ))}
@@ -147,7 +167,7 @@ const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id
                   {filteredSiblingPosts.map((sibling) => (
                     <li>
                       <a
-                        href={`/blog/${sibling.slug}`}
+                        href={`/posts/${sibling.slug}`}
                         class="line-clamp-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
                       >
                         {sibling.title}
