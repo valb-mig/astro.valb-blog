@@ -74,6 +74,7 @@ class GeminiWithGroqFallbackStrategy implements LlmStrategy {
 }
 
 const LLM_PROVIDER_SETTING_KEY = 'llm_provider';
+const LLM_FALLBACK_SETTING_KEY = 'llm_fallback_enabled';
 const DEFAULT_PROVIDER = 'groq';
 
 // import.meta.env é preenchido pelo Vite/Astro; fora desse contexto (ex:
@@ -82,10 +83,14 @@ function envVar(key: string): string | undefined {
   return import.meta.env?.[key] ?? process.env[key];
 }
 
-export async function getLlmProviderName(): Promise<string> {
-  const { data, error } = await db.from('settings').select('value').eq('key', LLM_PROVIDER_SETTING_KEY).maybeSingle();
+async function getSetting(key: string): Promise<string | null> {
+  const { data, error } = await db.from('settings').select('value').eq('key', key).maybeSingle();
   if (error) throw error;
-  return data?.value ?? DEFAULT_PROVIDER;
+  return data?.value ?? null;
+}
+
+export async function getLlmProviderName(): Promise<string> {
+  return (await getSetting(LLM_PROVIDER_SETTING_KEY)) ?? DEFAULT_PROVIDER;
 }
 
 export async function getLlmProvider(): Promise<LlmStrategy> {
@@ -95,8 +100,9 @@ export async function getLlmProvider(): Promise<LlmStrategy> {
     const apiKey = envVar('GEMINI_API_KEY');
     if (!apiKey) throw new Error('llm_provider está setado como "gemini" mas GEMINI_API_KEY não está no env.');
     const groqApiKey = envVar('GROQ_API_KEY');
+    const fallbackEnabled = ((await getSetting(LLM_FALLBACK_SETTING_KEY)) ?? 'true') === 'true';
     const gemini = new GeminiStrategy(apiKey);
-    return groqApiKey ? new GeminiWithGroqFallbackStrategy(gemini, groqApiKey) : gemini;
+    return groqApiKey && fallbackEnabled ? new GeminiWithGroqFallbackStrategy(gemini, groqApiKey) : gemini;
   }
 
   const apiKey = envVar('GROQ_API_KEY');

@@ -220,6 +220,29 @@ async function fetchRecentEvents(publicRepoNames: Set<string>, date: string): Pr
   return mapped.flat();
 }
 
+// `.upsert(..., { ignoreDuplicates: true }).select('*')` não retorna de forma
+// determinística só as linhas realmente inseridas — o RETURNING do
+// ON CONFLICT DO NOTHING varia por versão do PostgREST, às vezes vindo com
+// linhas que já existiam. Calcula o subconjunto novo consultando antes do
+// upsert, em vez de confiar em `inserted.length` (que fazia o log imprimir
+// contagem errada e, pior, podia pular o `if (!insertedCount && !force) return`
+// e reconstruir o post à toa num rerun sem evento novo de fato).
+async function filterTrulyNewEvents(events: NewEvent[]): Promise<NewEvent[]> {
+  if (!events.length) return [];
+
+  const { data: existing, error } = await db
+    .from('source_events')
+    .select('type, external_id, repo')
+    .in(
+      'external_id',
+      events.map((e) => e.external_id),
+    );
+  if (error) throw error;
+
+  const existingKeys = new Set((existing ?? []).map((e) => `${e.type}|${e.external_id}|${e.repo}`));
+  return events.filter((e) => !existingKeys.has(`${e.type}|${e.external_id}|${e.repo}`));
+}
+
 const CONVENTIONAL_COMMIT_RE = /^(\w+)(\([^)]*\))?:\s*(.+)$/;
 const MERGE_PR_RE = /^Merge pull request #(\d+)/;
 
@@ -646,6 +669,7 @@ async function main(): Promise<void> {
     await syncProjectLanguages();
 
     const newEvents = await fetchRecentEvents(publicRepoNames, date);
+    const trulyNewEvents = await filterTrulyNewEvents(newEvents);
     let insertedCount = 0;
 
     if (newEvents.length) {
@@ -654,11 +678,11 @@ async function main(): Promise<void> {
         .upsert(newEvents, { onConflict: 'source,type,external_id,repo', ignoreDuplicates: true })
         .select('*');
       if (error) throw error;
-      insertedCount = inserted?.length ?? 0;
+      insertedCount = trulyNewEvents.length;
 
-      if (insertedCount) {
+      if (inserted?.length) {
         const postId = await getOrCreatePostId(slug, date);
-        const links = inserted!.map((e) => ({ post_id: postId, event_id: e.id }));
+        const links = inserted.map((e) => ({ post_id: postId, event_id: e.id }));
         const { error: linkError } = await db
           .from('post_events')
           .upsert(links, { onConflict: 'post_id,event_id', ignoreDuplicates: true });

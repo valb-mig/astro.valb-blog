@@ -2,17 +2,38 @@
 import Admin from '../../layouts/Admin.astro';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { db } from '../../lib/db';
 
 const selectClass =
   'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
 
-const { data } = await db.from('settings').select('value').eq('key', 'llm_provider').maybeSingle();
-const currentProvider = data?.value ?? 'groq';
+const { data: settingsRows } = await db
+  .from('settings')
+  .select('key,value')
+  .in('key', ['llm_provider', 'llm_fallback_enabled']);
+const settings = Object.fromEntries((settingsRows ?? []).map((s) => [s.key, s.value]));
+const currentProvider = settings.llm_provider ?? 'groq';
+const fallbackEnabled = (settings.llm_fallback_enabled ?? 'true') === 'true';
+
+const hasGroqKey = !!import.meta.env.GROQ_API_KEY;
+const hasGeminiKey = !!import.meta.env.GEMINI_API_KEY;
 ---
 
 <Admin title="Settings">
   <h1 class="mb-8 text-xl font-semibold">Settings</h1>
+
+  <div class="mb-8 flex max-w-sm flex-col gap-2 rounded-lg border border-border p-4">
+    <p class="text-sm font-medium">API keys do provider de LLM</p>
+    <div class="flex items-center gap-2 text-sm">
+      <Badge variant={hasGroqKey ? 'default' : 'outline'}>{hasGroqKey ? 'ok' : 'faltando'}</Badge>
+      <span class="text-muted-foreground">GROQ_API_KEY</span>
+    </div>
+    <div class="flex items-center gap-2 text-sm">
+      <Badge variant={hasGeminiKey ? 'default' : 'outline'}>{hasGeminiKey ? 'ok' : 'faltando'}</Badge>
+      <span class="text-muted-foreground">GEMINI_API_KEY</span>
+    </div>
+  </div>
 
   <form id="settings-form" class="flex max-w-sm flex-col gap-6">
     <div class="flex flex-col gap-1.5">
@@ -24,6 +45,17 @@ const currentProvider = data?.value ?? 'groq';
       <p class="text-xs text-muted-foreground">
         modelo usado pra normalizar a atividade de GitHub em texto de post no pipeline de ingest.
       </p>
+    </div>
+
+    <div class="flex items-start gap-2.5">
+      <input type="checkbox" id="f-llm-fallback" checked={fallbackEnabled} class="mt-1 size-4 rounded border-input" />
+      <div class="flex flex-col gap-1">
+        <Label htmlFor="f-llm-fallback">fallback automático Gemini → Groq</Label>
+        <p class="text-xs text-muted-foreground">
+          se o provider ativo for gemini e ele falhar (erro de API, rate limit), tenta de novo via groq. só funciona
+          com GROQ_API_KEY configurada.
+        </p>
+      </div>
     </div>
 
     <div class="flex items-center gap-4">
@@ -38,27 +70,37 @@ const currentProvider = data?.value ?? 'groq';
   const form = document.getElementById('settings-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
 
+  async function saveSetting(key: string, value: string): Promise<void> {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value }),
+    });
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: null }));
+      throw new Error(error ?? 'Erro ao salvar');
+    }
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
-    const value = (document.getElementById('f-llm-provider') as HTMLSelectElement).value;
+    const provider = (document.getElementById('f-llm-provider') as HTMLSelectElement).value;
+    const fallbackEnabled = (document.getElementById('f-llm-fallback') as HTMLInputElement).checked;
 
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: 'llm_provider', value }),
-    });
+    try {
+      await Promise.all([
+        saveSetting('llm_provider', provider),
+        saveSetting('llm_fallback_enabled', String(fallbackEnabled)),
+      ]);
+      toast.success('Salvo.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+    }
 
     saveBtn.disabled = false;
     saveBtn.textContent = 'salvar';
-
-    if (res.ok) {
-      toast.success('Salvo.');
-    } else {
-      const { error } = await res.json();
-      toast.error(error ?? 'Erro ao salvar');
-    }
   });
 </script>
