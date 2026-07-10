@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import PostCard from '../components/PostCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
+import WakatimeWidget from '../components/WakatimeWidget.astro';
 import { Button } from '@/components/ui/button';
 import { Cat, GitCommit, Rss } from 'lucide-react';
 import { db } from '../lib/db';
@@ -33,6 +34,20 @@ const activeProjects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'ti
 type PostProjectRow = { post_id: string; project_id: string; projects: { slug: string; title: string } | null };
 const postProjectRows = (postProjectRes.data ?? []) as unknown as PostProjectRow[];
 
+const statusMessages = [
+  'Codando muito...',
+  'Quebrando build de propósito pra aprender algo novo.',
+  'Refatorando o que não devia.',
+  'Debugando às 2h da manhã.',
+  'Commitando "fix" pela quinta vez hoje.',
+  '99 problemas e um cache invalidado é um deles.',
+  'Testando em produção (não conta se ninguém ver).',
+  'Lendo docs que eu mesmo devia ter escrito.',
+  'Convertido mais um café em código.',
+  'Procurando ponto e vírgula perdido.',
+];
+const status = statusMessages[Math.floor(Math.random() * statusMessages.length)];
+
 // Projetos linkados por post + contagem de posts por projeto, ambos derivados
 // da mesma query de post_projects.
 const projectsByPostId: Record<string, { slug: string; title: string }[]> = {};
@@ -47,29 +62,27 @@ for (const row of postProjectRows) {
 <Base title="valb">
   <div class="mx-auto max-w-5xl px-6">
 
+    <!-- Logo -->
+    <div class="fade-in flex justify-center pt-16">
+      <span class="text-6xl font-semibold tracking-tight sm:text-7xl">
+        <span class="text-muted-foreground">~/</span>blog
+      </span>
+    </div>
+
     <!-- Hero -->
-    <section class="fade-in flex flex-col items-start gap-5 py-20">
-      <div class="flex size-14 items-center justify-center rounded-full bg-muted text-lg font-medium">V</div>
+    <section class="fade-in flex flex-col items-start justify-between gap-8 py-20 sm:flex-row sm:items-center">
       <div class="flex flex-col gap-2">
         <h1 class="text-2xl font-semibold">valb-mig</h1>
-        <p class="max-w-lg text-sm leading-relaxed text-muted-foreground">
-          Desenvolvedor apaixonado por ferramentas, automação e interfaces bonitas.
-          Escrevo sobre código, projetos e ideias.
-        </p>
+        <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span class="relative flex size-2">
+            <span class="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-75"></span>
+            <span class="relative inline-flex size-2 rounded-full bg-green-500"></span>
+          </span>
+          {status}
+        </div>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <a href="https://github.com/valb-mig" target="_blank" rel="noopener" class="flex items-center gap-1">
-            <Cat size={14} />
-            GitHub
-          </a>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a href="/rss.xml" class="flex items-center gap-1">
-            <Rss size={14} />
-            RSS
-          </a>
-        </Button>
+      <div class="w-full sm:w-96">
+        <WakatimeWidget />
       </div>
     </section>
 
@@ -77,7 +90,7 @@ for (const row of postProjectRows) {
     <section class="pb-20">
       <div class="mb-6 flex items-baseline justify-between">
         <h2 class="text-lg font-semibold">Posts recentes</h2>
-        <a href="/blog" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
+        <a href="/posts" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
           ver todos →
         </a>
       </div>
