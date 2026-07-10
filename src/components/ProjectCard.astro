@@ -1,6 +1,7 @@
 ---
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import LanguageBadges from './LanguageBadges.astro';
 
 interface Props {
   title: string;
@@ -10,6 +11,7 @@ interface Props {
   tags?: string[];
   status?: 'active' | 'completed' | 'archived';
   repo?: string;
+  languages?: Record<string, number> | null;
   postCount?: number;
   delay?: number;
 }
@@ -21,6 +23,7 @@ const {
   tags = [],
   status = 'active',
   repo,
+  languages,
   postCount = 0,
   delay = 0,
 } = Astro.props;
@@ -46,6 +49,8 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
     </div>
 
     <p class="line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
+
+    <LanguageBadges languages={languages} />
 
     <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
       <div class="flex flex-wrap gap-1.5">
