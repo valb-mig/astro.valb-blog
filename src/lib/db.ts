@@ -26,6 +26,7 @@ export type Project = {
   repo: string | null;
   draft: boolean;
   parent_project_id: string | null;
+  languages: Record<string, number> | null;
   created_at: string;
   updated_at: string;
 };
@@ -41,6 +42,18 @@ export type SourceEvent = {
   payload: Record<string, unknown>;
   occurred_at: string;
   created_at: string;
+};
+
+export type IngestRun = {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: 'running' | 'success' | 'error';
+  target_date: string;
+  trigger: string;
+  events_created: number;
+  llm_fallback_used: boolean;
+  error_message: string | null;
 };
 
 // import.meta.env é preenchido pelo Vite/Astro; fora desse contexto (ex:

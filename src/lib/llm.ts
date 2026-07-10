@@ -10,6 +10,7 @@ export type CompleteParams = {
 
 export interface LlmStrategy {
   complete(params: CompleteParams): Promise<string>;
+  usedFallback?: boolean;
 }
 
 class GroqStrategy implements LlmStrategy {
@@ -52,6 +53,26 @@ class GeminiStrategy implements LlmStrategy {
   }
 }
 
+// Cai pra Groq se Gemini falhar (erro de API, rate limit, indisponibilidade) e GROQ_API_KEY existir.
+class GeminiWithGroqFallbackStrategy implements LlmStrategy {
+  usedFallback = false;
+
+  constructor(
+    private gemini: GeminiStrategy,
+    private groqApiKey: string,
+  ) {}
+
+  async complete(params: CompleteParams): Promise<string> {
+    try {
+      return await this.gemini.complete(params);
+    } catch (err) {
+      console.warn('[llm] Gemini falhou, caindo pra Groq:', err instanceof Error ? err.message : err);
+      this.usedFallback = true;
+      return new GroqStrategy(this.groqApiKey).complete(params);
+    }
+  }
+}
+
 const LLM_PROVIDER_SETTING_KEY = 'llm_provider';
 const DEFAULT_PROVIDER = 'groq';
 
@@ -73,7 +94,9 @@ export async function getLlmProvider(): Promise<LlmStrategy> {
   if (provider === 'gemini') {
     const apiKey = envVar('GEMINI_API_KEY');
     if (!apiKey) throw new Error('llm_provider está setado como "gemini" mas GEMINI_API_KEY não está no env.');
-    return new GeminiStrategy(apiKey);
+    const groqApiKey = envVar('GROQ_API_KEY');
+    const gemini = new GeminiStrategy(apiKey);
+    return groqApiKey ? new GeminiWithGroqFallbackStrategy(gemini, groqApiKey) : gemini;
   }
 
   const apiKey = envVar('GROQ_API_KEY');

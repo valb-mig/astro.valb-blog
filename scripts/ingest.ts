@@ -1,8 +1,13 @@
 import { Octokit as OctokitCore } from '@octokit/rest';
 import { throttling } from '@octokit/plugin-throttling';
 import { retry } from '@octokit/plugin-retry';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { existsSync } from 'fs';
 import { db, calcReadingTime, type SourceEvent } from '../src/lib/db.ts';
 import { getLlmProvider, type LlmStrategy } from '../src/lib/llm.ts';
+
+const execFileAsync = promisify(execFile);
 
 const GH_TOKEN = process.env.GH_TOKEN;
 const GH_USERNAME = process.env.GH_USERNAME;
@@ -107,133 +112,110 @@ async function syncProjectsFromGithub(ownedRepos: Awaited<ReturnType<typeof fetc
   console.log(`${newRepos.length} projeto(s) novo(s) sincronizado(s) do GitHub.`);
 }
 
-async function fetchPushCommits(
-  repo: string,
-  before: string,
-  head: string,
-): Promise<Array<{ sha: string; message: string; author?: { name?: string } }>> {
-  const [owner, name] = repo.split('/');
-  const { data } = await octokit.rest.repos.compareCommitsWithBasehead({
-    owner,
-    repo: name,
-    basehead: `${before}...${head}`,
-  });
-  return data.commits.map((c) => ({
-    sha: c.sha,
-    message: c.commit.message,
-    author: { name: c.commit.author?.name ?? undefined },
-  }));
+// Roda todo dia junto do sync de projetos: recalcula % de linguagens por
+// repo (via GitHub linguist) pra todo projeto com `repo` setado, novo ou
+// existente. Falha por projeto (repo renomeado/deletado) não derruba a run.
+async function syncProjectLanguages(): Promise<void> {
+  const { data: projects, error } = await db.from('projects').select('id, repo').not('repo', 'is', null);
+  if (error) throw error;
+  if (!projects?.length) return;
+
+  let updated = 0;
+  for (const project of projects) {
+    const [owner, name] = (project.repo as string).split('/');
+    try {
+      const { data: bytesByLanguage } = await octokit.rest.repos.listLanguages({ owner, repo: name });
+      const total = Object.values(bytesByLanguage).reduce((sum, bytes) => sum + bytes, 0);
+      if (!total) continue;
+
+      const languages = Object.fromEntries(
+        Object.entries(bytesByLanguage).map(([lang, bytes]) => [lang, Math.round((bytes / total) * 1000) / 10]),
+      );
+
+      const { error: updateError } = await db.from('projects').update({ languages }).eq('id', project.id);
+      if (updateError) console.warn(`Falha ao salvar linguagens de ${project.repo}:`, updateError.message);
+      else updated++;
+    } catch (err) {
+      console.warn(`Falha ao buscar linguagens de ${project.repo}:`, (err as Error).message);
+    }
+  }
+  console.log(`Linguagens atualizadas em ${updated}/${projects.length} projeto(s).`);
 }
 
-async function mapGithubEvent(event: {
-  type: string | null;
-  repo: { name: string };
-  created_at: string | null;
-  payload: Record<string, any>;
-}): Promise<NewEvent[]> {
-  const repo = event.repo.name;
-  const occurred_at = event.created_at ?? new Date().toISOString();
+const INGEST_CACHE_DIR = new URL('../.ingest-cache/', import.meta.url).pathname;
 
-  switch (event.type) {
-    case 'PushEvent': {
-      const commits = await fetchPushCommits(repo, event.payload.before, event.payload.head);
-      return commits.map((c) => ({
+function mirrorDirFor(fullName: string): string {
+  return `${INGEST_CACHE_DIR}${fullName.replace('/', '__')}.git`;
+}
+
+// Bare mirror por repo em `.ingest-cache/` — sem checkout de working tree,
+// só objetos+refs, suficiente pra `git log`. `--depth` limita o fetch a N
+// commits (não clone completo), barato mesmo pra repo antigo.
+// `--shallow-since` faria mais sentido semanticamente, mas bate num bug
+// conhecido do git client contra o smart-HTTP do GitHub ("error processing
+// shallow info: 4") em vários repos reais testados aqui — `--depth` não tem
+// esse problema e cobre o mesmo caso de uso (volume de commit diário é
+// sempre << 100).
+const MIRROR_DEPTH = 100;
+
+async function syncRepoMirror(fullName: string): Promise<string> {
+  const dir = mirrorDirFor(fullName);
+  const authedUrl = `https://x-access-token:${GH_TOKEN}@github.com/${fullName}.git`;
+
+  if (existsSync(dir)) {
+    await execFileAsync('git', ['--git-dir', dir, 'fetch', '--depth', String(MIRROR_DEPTH), 'origin', '+refs/heads/*:refs/heads/*']);
+  } else {
+    await execFileAsync('git', ['clone', '--bare', '--depth', String(MIRROR_DEPTH), authedUrl, dir]);
+  }
+  return dir;
+}
+
+const GIT_LOG_SEP = '\x1f';
+
+async function fetchCommitsFromGitLog(fullName: string, dir: string, date: string): Promise<NewEvent[]> {
+  const since = `${date}T00:00:00Z`;
+  const until = `${date}T23:59:59Z`;
+  const { stdout } = await execFileAsync('git', [
+    '--git-dir',
+    dir,
+    'log',
+    '--all',
+    `--since=${since}`,
+    `--until=${until}`,
+    `--pretty=format:%H${GIT_LOG_SEP}%s${GIT_LOG_SEP}%aI${GIT_LOG_SEP}%an`,
+  ]);
+
+  if (!stdout.trim()) return [];
+
+  return stdout
+    .trim()
+    .split('\n')
+    .map((line) => {
+      const [sha, subject, authorDate, authorName] = line.split(GIT_LOG_SEP);
+      return {
         source: 'github',
         type: 'commit' as const,
-        external_id: c.sha,
-        repo,
-        url: `https://github.com/${repo}/commit/${c.sha}`,
-        title: c.message.split('\n')[0],
-        payload: { message: c.message, author: c.author?.name ?? null },
-        occurred_at,
-      }));
-    }
-    case 'IssuesEvent': {
-      const issue = event.payload.issue;
-      if (!issue?.html_url || !issue?.title) {
-        console.warn(`Evento IssuesEvent sem url/title (repo pode ter virado privado): ${repo}#${issue?.number}`);
-        return [];
-      }
-      return [
-        {
-          source: 'github',
-          type: 'issue' as const,
-          external_id: String(issue.number),
-          repo,
-          url: issue.html_url,
-          title: issue.title,
-          payload: { action: event.payload.action },
-          occurred_at,
-        },
-      ];
-    }
-    case 'PullRequestEvent': {
-      const pr = event.payload.pull_request;
-      if (!pr?.html_url || !pr?.title) {
-        console.warn(`Evento PullRequestEvent sem url/title (repo pode ter virado privado): ${repo}#${pr?.number}`);
-        return [];
-      }
-      return [
-        {
-          source: 'github',
-          type: 'pull_request' as const,
-          external_id: String(pr.number),
-          repo,
-          url: pr.html_url,
-          title: pr.title,
-          payload: { action: event.payload.action, merged: !!pr.merged },
-          occurred_at,
-        },
-      ];
-    }
-    case 'ReleaseEvent': {
-      const release = event.payload.release;
-      if (!release?.html_url || !(release?.name || release?.tag_name)) {
-        console.warn(`Evento ReleaseEvent sem url/title (repo pode ter virado privado): ${repo}`);
-        return [];
-      }
-      return [
-        {
-          source: 'github',
-          type: 'release' as const,
-          external_id: release.tag_name,
-          repo,
-          url: release.html_url,
-          title: release.name || release.tag_name,
-          payload: { body: release.body ?? null },
-          occurred_at,
-        },
-      ];
-    }
-    default:
-      return [];
-  }
+        external_id: sha,
+        repo: fullName,
+        url: `https://github.com/${fullName}/commit/${sha}`,
+        title: subject,
+        payload: { message: subject, author: authorName ?? null },
+        occurred_at: authorDate,
+      };
+    });
 }
 
-// `listEventsForAuthenticatedUser` traz eventos de repos privados também
-// (o token é do próprio dono) — filtra pra `publicRepoNames` antes de
-// qualquer coisa, senão commit/PR/issue de repo privado vaza pro post público.
+// Troca a Events API (retém ~90 dias, só commit sobrevive dessa troca — issue/PR/release
+// não são mais capturados) por leitura direta de `git log` num mirror bare local.
 async function fetchRecentEvents(publicRepoNames: Set<string>, date: string): Promise<NewEvent[]> {
-  const since = new Date(`${date}T00:00:00.000Z`);
-  const until = new Date(`${date}T23:59:59.999Z`);
-  const { data } = await octokit.rest.activity.listEventsForAuthenticatedUser({
-    username: GH_USERNAME!,
-    per_page: 100,
-  });
-
-  const recent = data.filter(
-    (e) =>
-      e.created_at &&
-      new Date(e.created_at) >= since &&
-      new Date(e.created_at) <= until &&
-      publicRepoNames.has(e.repo.name),
-  );
-  // Sequencial, não Promise.all — PushEvent dispara uma chamada à API por
-  // item (fetchPushCommits); em paralelo isso é rajada de request concorrente,
-  // gatilho clássico do rate limit secundário do GitHub.
   const mapped: NewEvent[][] = [];
-  for (const e of recent) {
-    mapped.push(await mapGithubEvent(e as any));
+  for (const fullName of publicRepoNames) {
+    try {
+      const dir = await syncRepoMirror(fullName);
+      mapped.push(await fetchCommitsFromGitLog(fullName, dir, date));
+    } catch (err) {
+      console.warn(`Falha ao ler git log de ${fullName}:`, (err as Error).message);
+    }
   }
   return mapped.flat();
 }
@@ -593,7 +575,7 @@ async function rebuildPostContent(
   postId: string,
   date: string,
   repoCreatedAt: Map<string, string | null>,
-): Promise<number> {
+): Promise<{ totalEvents: number; fallbackUsed: boolean }> {
   const allEvents = await fetchAllEventsForPost(postId);
   const groups = groupByRepo(dedupeMergeCommits(allEvents));
   const llm = await getLlmProvider();
@@ -612,7 +594,34 @@ async function rebuildPostContent(
 
   await linkPostToProjects(postId, Object.keys(groups));
 
-  return allEvents.length;
+  return { totalEvents: allEvents.length, fallbackUsed: llm.usedFallback ?? false };
+}
+
+// `ingest_runs` alimenta o dashboard do admin — grava início/fim de toda run,
+// venha ela do cron, de um dispatch manual (admin) ou de `pnpm ingest:local`.
+// GITHUB_EVENT_NAME é setado automaticamente pelo runner do GitHub Actions
+// ('schedule' | 'workflow_dispatch'); fora dele (local) cai pra 'local'.
+async function startIngestRun(date: string): Promise<string> {
+  const trigger = process.env.GITHUB_EVENT_NAME ?? 'local';
+  const { data, error } = await db.from('ingest_runs').insert({ target_date: date, trigger }).select('id').single();
+  if (error || !data) throw error ?? new Error('Falha ao criar ingest_run');
+  return data.id;
+}
+
+async function finishIngestRun(
+  runId: string,
+  update: {
+    status: 'success' | 'error';
+    events_created: number;
+    llm_fallback_used: boolean;
+    error_message: string | null;
+  },
+): Promise<void> {
+  const { error } = await db
+    .from('ingest_runs')
+    .update({ ...update, finished_at: new Date().toISOString() })
+    .eq('id', runId);
+  if (error) console.warn('Falha ao atualizar ingest_run:', error.message);
 }
 
 function targetDate(): string {
@@ -626,51 +635,83 @@ async function main(): Promise<void> {
   const force = process.argv.includes('--force');
   const date = targetDate();
   const slug = slugForDate(date);
+  const runId = await startIngestRun(date);
 
-  const ownedRepos = await fetchOwnedRepos();
-  const publicRepoNames = new Set(ownedRepos.filter((r) => !r.private).map((r) => r.full_name));
-  const repoCreatedAt = new Map(ownedRepos.map((r) => [r.full_name, r.created_at]));
+  try {
+    const ownedRepos = await fetchOwnedRepos();
+    const publicRepoNames = new Set(ownedRepos.filter((r) => !r.private).map((r) => r.full_name));
+    const repoCreatedAt = new Map(ownedRepos.map((r) => [r.full_name, r.created_at]));
 
-  await syncProjectsFromGithub(ownedRepos);
+    await syncProjectsFromGithub(ownedRepos);
+    await syncProjectLanguages();
 
-  const newEvents = await fetchRecentEvents(publicRepoNames, date);
-  let insertedCount = 0;
+    const newEvents = await fetchRecentEvents(publicRepoNames, date);
+    let insertedCount = 0;
 
-  if (newEvents.length) {
-    const { data: inserted, error } = await db
-      .from('source_events')
-      .upsert(newEvents, { onConflict: 'source,type,external_id,repo', ignoreDuplicates: true })
-      .select('*');
-    if (error) throw error;
-    insertedCount = inserted?.length ?? 0;
+    if (newEvents.length) {
+      const { data: inserted, error } = await db
+        .from('source_events')
+        .upsert(newEvents, { onConflict: 'source,type,external_id,repo', ignoreDuplicates: true })
+        .select('*');
+      if (error) throw error;
+      insertedCount = inserted?.length ?? 0;
 
-    if (insertedCount) {
-      const postId = await getOrCreatePostId(slug, date);
-      const links = inserted!.map((e) => ({ post_id: postId, event_id: e.id }));
-      const { error: linkError } = await db
-        .from('post_events')
-        .upsert(links, { onConflict: 'post_id,event_id', ignoreDuplicates: true });
-      if (linkError) throw linkError;
+      if (insertedCount) {
+        const postId = await getOrCreatePostId(slug, date);
+        const links = inserted!.map((e) => ({ post_id: postId, event_id: e.id }));
+        const { error: linkError } = await db
+          .from('post_events')
+          .upsert(links, { onConflict: 'post_id,event_id', ignoreDuplicates: true });
+        if (linkError) throw linkError;
+      }
     }
-  }
 
-  if (!insertedCount && !force) {
+    if (!insertedCount && !force) {
+      console.log(
+        newEvents.length
+          ? 'Eventos encontrados já haviam sido processados (dedupe).'
+          : `Nenhum evento novo em ${date}.`,
+      );
+      await finishIngestRun(runId, {
+        status: 'success',
+        events_created: 0,
+        llm_fallback_used: false,
+        error_message: null,
+      });
+      return;
+    }
+
+    const { data: existingPost } = await db.from('posts').select('id').eq('slug', slug).maybeSingle();
+    if (!existingPost) {
+      console.log(`Nada pra reconstruir — nenhum post existente em ${date} e nenhum evento novo.`);
+      await finishIngestRun(runId, {
+        status: 'success',
+        events_created: insertedCount,
+        llm_fallback_used: false,
+        error_message: null,
+      });
+      return;
+    }
+
+    const { totalEvents, fallbackUsed } = await rebuildPostContent(existingPost.id, date, repoCreatedAt);
     console.log(
-      newEvents.length ? 'Eventos encontrados já haviam sido processados (dedupe).' : `Nenhum evento novo em ${date}.`,
+      `Post rascunho "${slug}" atualizado com ${insertedCount} evento(s) novo(s), ${totalEvents} no total do dia.`,
     );
-    return;
+    await finishIngestRun(runId, {
+      status: 'success',
+      events_created: insertedCount,
+      llm_fallback_used: fallbackUsed,
+      error_message: null,
+    });
+  } catch (err) {
+    await finishIngestRun(runId, {
+      status: 'error',
+      events_created: 0,
+      llm_fallback_used: false,
+      error_message: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
-
-  const { data: existingPost } = await db.from('posts').select('id').eq('slug', slug).maybeSingle();
-  if (!existingPost) {
-    console.log(`Nada pra reconstruir — nenhum post existente em ${date} e nenhum evento novo.`);
-    return;
-  }
-
-  const totalEvents = await rebuildPostContent(existingPost.id, date, repoCreatedAt);
-  console.log(
-    `Post rascunho "${slug}" atualizado com ${insertedCount} evento(s) novo(s), ${totalEvents} no total do dia.`,
-  );
 }
 
 main().catch((err) => {
