@@ -23,8 +23,14 @@ const path = Astro.url.pathname;
     <header class="sticky top-0 z-50 h-14 border-b border-border bg-background/95 backdrop-blur-md">
       <div class="mx-auto flex h-full max-w-5xl items-center justify-between px-6">
         <div class="flex items-center gap-8">
-          <a href="/admin/posts" class="text-sm font-semibold">Admin</a>
+          <a href="/admin" class="text-sm font-semibold">Admin</a>
           <nav class="flex gap-6 text-sm">
+            <a
+              href="/admin"
+              class={path === '/admin' ? 'text-foreground' : 'text-muted-foreground transition-colors hover:text-foreground'}
+            >
+              Dashboard
+            </a>
             <a
               href="/admin/posts"
               class={path.startsWith('/admin/posts') ? 'text-foreground' : 'text-muted-foreground transition-colors hover:text-foreground'}

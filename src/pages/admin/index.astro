@@ -1,3 +1,107 @@
 ---
-return Astro.redirect('/admin/posts');
+import Admin from '../../layouts/Admin.astro';
+import { db } from '../../lib/db';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RefreshCw } from 'lucide-react';
+
+const [{ count: postsCount }, { count: projectsCount }, { count: reactionsCount }, { data: lastRun }] =
+  await Promise.all([
+    db.from('posts').select('*', { count: 'exact', head: true }),
+    db.from('projects').select('*', { count: 'exact', head: true }),
+    db.from('post_reactions').select('*', { count: 'exact', head: true }),
+    db.from('ingest_runs').select('*').order('started_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+
+const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+  success: 'default',
+  error: 'outline',
+  running: 'secondary',
+};
 ---
+
+<Admin title="Dashboard">
+  <h1 class="mb-8 text-xl font-semibold">Dashboard</h1>
+
+  <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground">Posts</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p class="text-2xl font-semibold">{postsCount ?? 0}</p>
+      </CardContent>
+    </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground">Projects</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p class="text-2xl font-semibold">{projectsCount ?? 0}</p>
+      </CardContent>
+    </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground">Reactions</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p class="text-2xl font-semibold">{reactionsCount ?? 0}</p>
+      </CardContent>
+    </Card>
+  </div>
+
+  <Card className="max-w-lg">
+    <CardHeader>
+      <CardTitle className="text-sm font-medium">Último ingest</CardTitle>
+    </CardHeader>
+    <CardContent className="flex flex-col gap-3">
+      {
+        lastRun ? (
+          <>
+            <div class="flex items-center gap-2 text-sm">
+              <Badge variant={statusVariant[lastRun.status] ?? 'outline'}>{lastRun.status}</Badge>
+              <span class="text-muted-foreground">
+                {lastRun.target_date} · {lastRun.trigger}
+              </span>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              {lastRun.events_created} evento(s) criado(s)
+              {lastRun.llm_fallback_used ? ' · fallback Gemini→Groq usado' : ''}
+            </p>
+            {lastRun.error_message && <p class="text-xs text-destructive">{lastRun.error_message}</p>}
+          </>
+        ) : (
+          <p class="text-sm text-muted-foreground">nenhuma run registrada ainda.</p>
+        )
+      }
+      <Button id="run-ingest-btn" size="sm" className="flex w-fit items-center gap-1.5">
+        <RefreshCw size={14} />
+        rodar ingest agora
+      </Button>
+    </CardContent>
+  </Card>
+</Admin>
+
+<script>
+  import { toast } from 'sonner';
+
+  const btn = document.getElementById('run-ingest-btn') as HTMLButtonElement;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'disparando...';
+
+    const res = await fetch('/api/admin/ingest-trigger', { method: 'POST' });
+
+    if (res.ok) {
+      toast.success('Workflow disparado. Acompanhe no GitHub Actions.');
+    } else {
+      const { error } = await res.json().catch(() => ({ error: null }));
+      toast.error(error ?? 'Falha ao disparar ingest.');
+    }
+
+    btn.disabled = false;
+    btn.textContent = original;
+  });
+</script>
