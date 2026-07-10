@@ -1,0 +1,134 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import { db } from '../../../lib/db';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DeleteButton } from '@/components/DeleteButton';
+
+const PAGE_SIZE = 30;
+const page = Math.max(1, Number(Astro.url.searchParams.get('page') ?? '1') || 1);
+const repoFilter = Astro.url.searchParams.get('repo') ?? '';
+const from = (page - 1) * PAGE_SIZE;
+const to = from + PAGE_SIZE - 1;
+
+let query = db
+  .from('source_events')
+  .select('*', { count: 'exact' })
+  .order('occurred_at', { ascending: false })
+  .range(from, to);
+if (repoFilter) query = query.eq('repo', repoFilter);
+const { data: events, count } = await query;
+
+const { data: projectRepos } = await db.from('projects').select('repo').not('repo', 'is', null).order('repo');
+const repos = [...new Set((projectRepos ?? []).map((p) => p.repo as string))];
+
+const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+
+const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+  commit: 'secondary',
+  issue: 'outline',
+  pull_request: 'default',
+  release: 'default',
+};
+
+const selectClass =
+  'h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+
+function pageHref(p: number): string {
+  return `?page=${p}${repoFilter ? `&repo=${encodeURIComponent(repoFilter)}` : ''}`;
+}
+---
+
+<Admin title="Events">
+  <div class="mb-8 flex items-center justify-between">
+    <h1 class="text-xl font-semibold">Events</h1>
+    <form method="GET">
+      <select name="repo" id="repo-filter" class={selectClass}>
+        <option value="">todos os repos</option>
+        {
+          repos.map((repo) => (
+            <option value={repo} selected={repo === repoFilter}>
+              {repo}
+            </option>
+          ))
+        }
+      </select>
+    </form>
+  </div>
+
+  {
+    !events?.length ? (
+      <p class="text-sm text-muted-foreground">nenhum evento encontrado.</p>
+    ) : (
+      <div class="rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>tipo</TableHead>
+              <TableHead>título</TableHead>
+              <TableHead>repo</TableHead>
+              <TableHead>data</TableHead>
+              <TableHead className="text-right">ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {events.map((event) => (
+              <TableRow data-id={event.id}>
+                <TableCell>
+                  <Badge variant={typeVariant[event.type] ?? 'outline'}>{event.type}</Badge>
+                </TableCell>
+                <TableCell>
+                  <a href={event.url} target="_blank" class="hover:underline">
+                    {event.title}
+                  </a>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{event.repo}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {new Date(event.occurred_at).toLocaleString('pt-BR')}
+                </TableCell>
+                <TableCell className="text-right">
+                  <DeleteButton id={event.id} title={event.title} resource="events" client:load />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
+
+  {
+    totalPages > 1 && (
+      <div class="mt-6 flex items-center justify-center gap-4 text-sm">
+        {page > 1 ? (
+          <a href={pageHref(page - 1)} class="text-muted-foreground hover:text-foreground">
+            ← anterior
+          </a>
+        ) : (
+          <span class="text-muted-foreground/40">← anterior</span>
+        )}
+        <span class="text-muted-foreground">
+          {page} / {totalPages}
+        </span>
+        {page < totalPages ? (
+          <a href={pageHref(page + 1)} class="text-muted-foreground hover:text-foreground">
+            próxima →
+          </a>
+        ) : (
+          <span class="text-muted-foreground/40">próxima →</span>
+        )}
+      </div>
+    )
+  }
+
+  <script>
+    document.addEventListener('row-deleted', (e) => {
+      const { id } = (e as CustomEvent).detail;
+      document.querySelector(`tr[data-id="${id}"]`)?.remove();
+    });
+
+    document.getElementById('repo-filter')?.addEventListener('change', (e) => {
+      (e.target as HTMLSelectElement).form?.submit();
+    });
+  </script>
+</Admin>

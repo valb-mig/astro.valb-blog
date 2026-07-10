@@ -44,6 +44,12 @@ const path = Astro.url.pathname;
               Projects
             </a>
             <a
+              href="/admin/events"
+              class={path.startsWith('/admin/events') ? 'text-foreground' : 'text-muted-foreground transition-colors hover:text-foreground'}
+            >
+              Events
+            </a>
+            <a
               href="/admin/settings"
               class={path.startsWith('/admin/settings') ? 'text-foreground' : 'text-muted-foreground transition-colors hover:text-foreground'}
             >

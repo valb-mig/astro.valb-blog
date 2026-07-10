@@ -18,7 +18,7 @@ import { Trash2 } from "lucide-react";
 interface Props {
   id: string;
   title: string;
-  resource: "posts" | "projects";
+  resource: "posts" | "projects" | "events";
   /** Se definido, redireciona após deletar. Caso contrário, dispara "row-deleted" no document. */
   redirectTo?: string;
   label?: string;
