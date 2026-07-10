@@ -3,10 +3,14 @@ import Admin from '../../layouts/Admin.astro';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SelectField } from '@/components/SelectField';
+import { SwitchField } from '@/components/SwitchField';
 import { db } from '../../lib/db';
 
-const selectClass =
-  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+const providerOptions = [
+  { value: 'groq', label: 'groq' },
+  { value: 'gemini', label: 'gemini' },
+];
 
 const { data: settingsRows } = await db
   .from('settings')
@@ -38,17 +42,16 @@ const hasGeminiKey = !!import.meta.env.GEMINI_API_KEY;
   <form id="settings-form" class="flex max-w-sm flex-col gap-6">
     <div class="flex flex-col gap-1.5">
       <Label htmlFor="f-llm-provider">provider de normalização (ingest)</Label>
-      <select id="f-llm-provider" class={selectClass}>
-        <option value="groq" selected={currentProvider === 'groq'}>groq</option>
-        <option value="gemini" selected={currentProvider === 'gemini'}>gemini</option>
-      </select>
+      <input type="hidden" id="f-llm-provider" value={currentProvider} />
+      <SelectField client:load hiddenInputId="f-llm-provider" initialValue={currentProvider} options={providerOptions} className="w-full" />
       <p class="text-xs text-muted-foreground">
         modelo usado pra normalizar a atividade de GitHub em texto de post no pipeline de ingest.
       </p>
     </div>
 
     <div class="flex items-start gap-2.5">
-      <input type="checkbox" id="f-llm-fallback" checked={fallbackEnabled} class="mt-1 size-4 rounded border-input" />
+      <input type="hidden" id="f-llm-fallback" value={String(fallbackEnabled)} />
+      <SwitchField client:load hiddenInputId="f-llm-fallback" initialChecked={fallbackEnabled} />
       <div class="flex flex-col gap-1">
         <Label htmlFor="f-llm-fallback">fallback automático Gemini → Groq</Label>
         <p class="text-xs text-muted-foreground">
@@ -87,8 +90,8 @@ const hasGeminiKey = !!import.meta.env.GEMINI_API_KEY;
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
-    const provider = (document.getElementById('f-llm-provider') as HTMLSelectElement).value;
-    const fallbackEnabled = (document.getElementById('f-llm-fallback') as HTMLInputElement).checked;
+    const provider = (document.getElementById('f-llm-provider') as HTMLInputElement).value;
+    const fallbackEnabled = (document.getElementById('f-llm-fallback') as HTMLInputElement).value === 'true';
 
     try {
       await Promise.all([

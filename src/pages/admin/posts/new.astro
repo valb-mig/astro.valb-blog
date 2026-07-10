@@ -2,6 +2,7 @@
 import Admin from '../../../layouts/Admin.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { MultiSelect } from '@/components/MultiSelect';
+import { SwitchField } from '@/components/SwitchField';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -69,10 +70,11 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
     </div>
 
     <div class="flex gap-6">
-      <label class="flex items-center gap-2 text-sm text-muted-foreground">
-        <input id="f-draft" type="checkbox" checked class="accent-primary" />
-        draft (não publicado)
-      </label>
+      <div class="flex items-center gap-2.5">
+        <input type="hidden" id="f-draft" value="true" />
+        <SwitchField client:load hiddenInputId="f-draft" initialChecked={true} />
+        <Label htmlFor="f-draft">draft (não publicado)</Label>
+      </div>
     </div>
 
     <div class="flex flex-col gap-1.5">
@@ -132,7 +134,7 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
       description: (document.getElementById('f-description') as HTMLInputElement).value,
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       tags,
-      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
       projectIds,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };

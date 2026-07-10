@@ -4,9 +4,14 @@ import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SelectField } from '@/components/SelectField';
+import { SwitchField } from '@/components/SwitchField';
 
-const selectClass =
-  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30';
+const statusOptions = [
+  { value: 'active', label: 'active' },
+  { value: 'completed', label: 'completed' },
+  { value: 'archived', label: 'archived' },
+];
 ---
 
 <Admin title="Novo Projeto">
@@ -36,11 +41,8 @@ const selectClass =
       </div>
       <div class="flex flex-col gap-1.5">
         <Label htmlFor="f-status">status</Label>
-        <select id="f-status" class={selectClass}>
-          <option value="active">active</option>
-          <option value="completed">completed</option>
-          <option value="archived">archived</option>
-        </select>
+        <input type="hidden" id="f-status" value="active" />
+        <SelectField client:load hiddenInputId="f-status" initialValue="active" options={statusOptions} className="w-full" />
       </div>
       <div class="flex flex-col gap-1.5 sm:col-span-2">
         <Label htmlFor="f-repo">repo (owner/repositorio)</Label>
@@ -53,10 +55,11 @@ const selectClass =
       <Input id="f-tags" type="text" placeholder="astro, typescript" />
     </div>
 
-    <label class="flex items-center gap-2 text-sm text-muted-foreground">
-      <input id="f-draft" type="checkbox" checked class="accent-primary" />
-      draft
-    </label>
+    <div class="flex items-center gap-2.5">
+      <input type="hidden" id="f-draft" value="true" />
+      <SwitchField client:load hiddenInputId="f-draft" initialChecked={true} />
+      <Label htmlFor="f-draft">draft</Label>
+    </div>
 
     <div class="flex flex-col gap-1.5">
       <Label>descrição longa (markdown)</Label>
@@ -105,10 +108,10 @@ const selectClass =
       slug: (document.getElementById('f-slug') as HTMLInputElement).value,
       description: (document.getElementById('f-description') as HTMLInputElement).value,
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
-      status: (document.getElementById('f-status') as HTMLSelectElement).value,
+      status: (document.getElementById('f-status') as HTMLInputElement).value,
       tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
       repo: repoVal || null,
-      draft: (document.getElementById('f-draft') as HTMLInputElement).checked,
+      draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
 
