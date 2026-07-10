@@ -5,7 +5,7 @@ import LanguageBadges from '../../components/LanguageBadges.astro';
 import { Badge } from '@/components/ui/badge';
 import { db } from '../../lib/db';
 import type { Project, Post } from '../../lib/db';
-import { marked } from 'marked';
+import { renderMarkdown } from '../../lib/markdown';
 
 const { slug } = Astro.params;
 
@@ -19,7 +19,7 @@ const { data: project, error } = await db
 if (error || !project) return Astro.redirect('/projects');
 
 const p = project as Project;
-const contentHtml = await marked.parse(p.content);
+const contentHtml = await renderMarkdown(p.content);
 const repoUrl = p.repo ? `https://github.com/${p.repo}` : null;
 
 const { data: linkedPostRows } = await db
