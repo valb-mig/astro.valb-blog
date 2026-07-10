@@ -8,7 +8,9 @@ import {
 } from '../../../lib/auth';
 
 export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? clientAddress ?? 'unknown';
+  // clientAddress vem do runtime (IP real da conexão) — não é spoofável pelo cliente
+  // como o header x-forwarded-for seria. Só cai pro header se o runtime não expuser IP.
+  const ip = clientAddress ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   if (loginRateLimitExceeded(ip)) {
     return new Response(JSON.stringify({ error: 'Muitas tentativas. Tente novamente em alguns minutos.' }), {
       status: 429,
