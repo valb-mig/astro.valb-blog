@@ -12,7 +12,7 @@ export const GET: APIRoute = async () => {
       type: 'post' as const,
       title: p.title,
       subtitle: p.description ?? '',
-      href: `/blog/${p.slug}`,
+      href: `/posts/${p.slug}`,
     })),
     ...(projectsRes.data ?? []).map((p) => ({
       type: 'project' as const,
@@ -21,7 +21,7 @@ export const GET: APIRoute = async () => {
       href: `/projects/${p.slug}`,
     })),
     { type: 'nav' as const, title: 'Home', subtitle: '/', href: '/' },
-    { type: 'nav' as const, title: 'Blog', subtitle: 'todos os posts', href: '/blog' },
+    { type: 'nav' as const, title: 'Posts', subtitle: 'todos os posts', href: '/posts' },
     { type: 'nav' as const, title: 'Projects', subtitle: 'projetos', href: '/projects' },
     { type: 'nav' as const, title: 'About', subtitle: 'sobre mim', href: '/about' },
     { type: 'nav' as const, title: 'RSS Feed', subtitle: '/rss.xml', href: '/rss.xml' },

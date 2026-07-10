@@ -31,17 +31,17 @@ const filtered = activeTag
   : posts;
 ---
 
-<Base title="Blog — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Blog' }]}>
+<Base title="Posts — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Posts' }]}>
   <div class="mx-auto grid max-w-5xl grid-cols-1 gap-10 px-6 py-16 md:grid-cols-[180px_1fr]">
 
     <!-- Sidebar: tags -->
     <aside class="hidden md:block">
       <div class="sticky top-24 flex flex-col gap-1">
-        <a href="/blog">
+        <a href="/posts">
           <Badge variant={!activeTag ? 'default' : 'outline'} className="mb-1">all</Badge>
         </a>
         {allTags.map((tag) => (
-          <a href={`/blog?tag=${tag}`}>
+          <a href={`/posts?tag=${tag}`}>
             <Badge variant={activeTag === tag ? 'default' : 'outline'} className="mb-1">{tag}</Badge>
           </a>
         ))}
@@ -51,7 +51,7 @@ const filtered = activeTag
     <!-- Main content -->
     <main>
       <div class="mb-8">
-        <h1 class="text-2xl font-semibold">Blog</h1>
+        <h1 class="text-2xl font-semibold">Posts</h1>
         <p class="mt-1 text-sm text-muted-foreground">
           {filtered.length} post{filtered.length !== 1 ? 's' : ''}
           {activeTag && ` · filtrando "${activeTag}"`}
@@ -60,9 +60,9 @@ const filtered = activeTag
 
       <!-- Mobile tag row -->
       <div class="mb-6 flex flex-wrap gap-2 md:hidden">
-        <a href="/blog"><Badge variant={!activeTag ? 'default' : 'outline'}>all</Badge></a>
+        <a href="/posts"><Badge variant={!activeTag ? 'default' : 'outline'}>all</Badge></a>
         {allTags.map((tag) => (
-          <a href={`/blog?tag=${tag}`}><Badge variant={activeTag === tag ? 'default' : 'outline'}>{tag}</Badge></a>
+          <a href={`/posts?tag=${tag}`}><Badge variant={activeTag === tag ? 'default' : 'outline'}>{tag}</Badge></a>
         ))}
       </div>
 
