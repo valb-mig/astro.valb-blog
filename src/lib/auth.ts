@@ -52,8 +52,9 @@ export function verifySession(token: string): string | null {
     const expBuf = Buffer.from(expected, 'hex');
     if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null;
 
-    const [username] = payload.split(':');
-    return username ?? null;
+    const [username, issuedAt] = payload.split(':');
+    if (!username || !issuedAt || Date.now() - Number(issuedAt) > SESSION_MAX_AGE * 1000) return null;
+    return username;
   } catch {
     return null;
   }
