@@ -5,7 +5,7 @@ import { ReactionBar } from '@/components/ReactionBar';
 import { db } from '../../lib/db';
 import type { Post } from '../../lib/db';
 import { REACTION_EMOJIS, fingerprint } from '../../lib/reactions';
-import { marked } from 'marked';
+import { renderMarkdown } from '../../lib/markdown';
 
 const { slug } = Astro.params;
 
@@ -20,7 +20,7 @@ if (error || !post) return Astro.redirect('/posts');
 
 const p = post as Post;
 
-const contentHtml = await marked.parse(p.content);
+const contentHtml = await renderMarkdown(p.content);
 
 const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
   year: 'numeric',
