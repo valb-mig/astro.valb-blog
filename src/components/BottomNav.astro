@@ -1,0 +1,30 @@
+---
+import { FileText, FolderGit2, Activity, CircleUser } from 'lucide-react';
+
+const navItems = [
+  { label: 'Posts', href: '/posts', icon: FileText },
+  { label: 'Projects', href: '/projects', icon: FolderGit2 },
+  { label: 'Atividade', href: '/atividade', icon: Activity },
+  { label: 'About', href: '/about', icon: CircleUser },
+];
+
+const current = Astro.url.pathname;
+---
+
+<nav
+  class="fixed inset-x-0 bottom-0 z-50 grid h-16 grid-cols-4 border-t border-border bg-background/95 backdrop-blur-md md:hidden"
+  aria-label="Navegação principal (mobile)"
+>
+  {navItems.map(({ label, href, icon: Icon }) => {
+    const isActive = current === href || current.startsWith(href + '/');
+    return (
+      <a
+        href={href}
+        class={`flex flex-col items-center justify-center gap-0.5 text-[11px] transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}
+      >
+        <Icon size={20} />
+        {label}
+      </a>
+    );
+  })}
+</nav>

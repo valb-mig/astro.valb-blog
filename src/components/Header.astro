@@ -13,16 +13,19 @@ const current = Astro.url.pathname;
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
-  <div class="mx-auto grid h-16 max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-6">
-    <div class="flex items-center gap-5">
-      <a href="/" class="text-sm font-semibold">~/</a>
-      <nav class="flex items-center gap-5 text-sm" aria-label="Navegação principal">
+  <div class="mx-auto grid h-16 max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 sm:gap-4 sm:px-6">
+    <div class="flex min-w-0 items-center gap-3 sm:gap-5">
+      <a href="/" class="shrink-0 text-sm font-semibold">~/</a>
+      <nav
+        class="hidden items-center gap-5 text-sm md:flex"
+        aria-label="Navegação principal"
+      >
         {navItems.map(({ label, href }) => {
           const isActive = current === href || current.startsWith(href + '/');
           return (
             <a
               href={href}
-              class={`transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              class={`shrink-0 transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {label}
             </a>
