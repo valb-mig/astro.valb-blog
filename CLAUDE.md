@@ -57,6 +57,7 @@ No SQL migrations are versioned in the repo (`supabase-schema.sql` was removed) 
 2. Refreshes `projects.languages` for every project with a `repo` set (`octokit.repos.listLanguages`)
 3. For each public owned repo: bare-mirrors it into `.ingest-cache/` (`git clone/fetch --depth 100` — **not** `--shallow-since`, which hits a git-client bug against GitHub's smart-HTTP: "error processing shallow info: 4"), then reads `git log` for the target date's commits
 4. Upserts new `source_events` (dedupe by sha), rebuilds the day's "atividade" post from **all** linked events (not just the new batch) via two LLM calls (day-level paragraph + per-repo JSON paragraph) — provider is pluggable (`src/lib/llm.ts`: Groq or Gemini, auto-falls-back Gemini→Groq on error if `GROQ_API_KEY` is set)
+5. **As of 2026-07-12, if `git log` finds zero commits for the day across every repo**, falls back to Wakatime (`getWakatimeSummaryForDate` in `src/lib/wakatime.ts`, the `summaries` endpoint — not the `stats/last_7_days` one the home widget uses) instead of leaving the day without a post. Same "atividade" post/slug/title, just a narrative built from time-coded + language data instead of commits — skipped entirely if Wakatime has no key configured or logged under 5 minutes that day (`WAKATIME_MIN_SECONDS` in `scripts/ingest.ts`). Requires `WAKATIME_API_KEY` in the ingest env too now (`.github/workflows/ingest.yml`), not just Vercel's.
 
 ### LLM provider (`src/lib/llm.ts`)
 

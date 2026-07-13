@@ -94,6 +94,15 @@ real do código.
       projects/[slug], admin/posts, command-items, rss.xml). Widget Wakatime
       tirado de `/posts`, fica só na home (dentro do hero/bio)
 
+- [x] Fallback de Wakatime no ingest pra dia sem commit (2026-07-12):
+      `tryBuildWakatimeFallbackPost`/`normalizeWakatimeActivity` em
+      `scripts/ingest.ts`, `getWakatimeSummaryForDate` novo em
+      `src/lib/wakatime.ts` (endpoint `summaries`, dia específico). Precisa
+      `WAKATIME_API_KEY` como secret do GH Actions agora
+      (`.github/workflows/ingest.yml`). **Não testado contra API real do
+      Wakatime nem contra o cron de verdade ainda** — só revisão de código +
+      typecheck; validar no primeiro dia sem commit real.
+
 ## Ideias / backlog (sem compromisso)
 
 - [x] Cron do ingest ajustado pra `55 23 * * *` (fim do dia UTC) e janela de

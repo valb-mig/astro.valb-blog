@@ -6,6 +6,7 @@ import { promisify } from 'util';
 import { existsSync } from 'fs';
 import { db, calcReadingTime, type SourceEvent } from '../src/lib/db.ts';
 import { getLlmProvider, type LlmStrategy } from '../src/lib/llm.ts';
+import { getWakatimeSummaryForDate, type WakatimeDaySummary } from '../src/lib/wakatime.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -485,6 +486,78 @@ async function generateRepoNarratives(
   }
 }
 
+// Ignora dia com pouquíssimo tempo registrado (IDE aberto sem uso real etc.) —
+// só vira post quando há atividade de fato pra contar.
+const WAKATIME_MIN_SECONDS = 5 * 60;
+
+function buildWakatimeSummaryLine(summary: WakatimeDaySummary): string {
+  const langs = summary.languages.map((l) => `${l.name} (${l.text})`).join(', ');
+  const projects = summary.projects.map((p) => `${p.name} (${p.text})`).join(', ');
+  return `Tempo total codando: ${summary.totalText}.${langs ? ` Linguagens: ${langs}.` : ''}${projects ? ` Projetos: ${projects}.` : ''}`;
+}
+
+async function normalizeWakatimeActivity(llm: LlmStrategy, summary: WakatimeDaySummary): Promise<string> {
+  const system = [
+    'Você normaliza estatísticas de tempo de código em um parágrafo curto de blog pessoal, em primeira pessoa, tom direto e informal, em português do Brasil.',
+    'O usuário não fez nenhum commit nesse dia, mas passou tempo codando — conte isso normalmente, como só mais um tipo de dia de trabalho, sem soar como desculpa ou pedido de desculpas.',
+    'Não invente detalhes que não estão no resumo — fale só em termos de tempo total e das linguagens/projetos predominantes que vieram nos dados.',
+    'Não cite a ferramenta de tracking pelo nome nem a palavra "commit".',
+    'Máximo 3 frases.',
+  ].join(' ');
+  const user = `${buildWakatimeSummaryLine(summary)}\n\nEscreva o parágrafo.`;
+
+  const text = await llm.complete({ system, user });
+  return text || buildWakatimeSummaryLine(summary);
+}
+
+function buildWakatimeDetailsBlock(summary: WakatimeDaySummary): string {
+  if (!summary.languages.length) return '';
+  const langLines = summary.languages.map((l) => `- ${l.name}: ${l.text} (${l.percent.toFixed(1)}%)`).join('\n');
+  return `<details>\n<summary>Estatísticas do dia — ${summary.totalText}</summary>\n\n${langLines}\n\n</details>`;
+}
+
+function buildWakatimePostContent(narrative: string, summary: WakatimeDaySummary): string {
+  return [narrative, buildWakatimeDetailsBlock(summary)].filter(Boolean).join('\n\n---\n\n');
+}
+
+// Chamado só quando o dia não teve nenhum commit em nenhum repo — em vez de
+// não gerar post nenhum, usa o tempo de código real (Wakatime) pra montar o
+// mesmo tipo de post "atividade" do dia, só que com narrativa baseada em
+// tempo/linguagem em vez de commits/PRs/releases.
+async function tryBuildWakatimeFallbackPost(
+  date: string,
+  slug: string,
+  force: boolean,
+): Promise<{ built: boolean; llmFallbackUsed: boolean }> {
+  const summary = await getWakatimeSummaryForDate(date);
+  if (!summary || summary.totalSeconds < WAKATIME_MIN_SECONDS) {
+    console.log(`Nenhum commit e sem dado relevante de Wakatime em ${date}.`);
+    return { built: false, llmFallbackUsed: false };
+  }
+
+  const { data: existingPost } = await db.from('posts').select('id').eq('slug', slug).maybeSingle();
+  if (existingPost && !force) {
+    console.log(`Post "${slug}" já existe, não reconstruído a partir do Wakatime sem --force.`);
+    return { built: false, llmFallbackUsed: false };
+  }
+
+  const llm = await getLlmProvider();
+  const narrative = await normalizeWakatimeActivity(llm, summary);
+  const content = buildWakatimePostContent(narrative, summary);
+
+  const postId = existingPost ? existingPost.id : await getOrCreatePostId(slug, date);
+  const { error: updateError } = await db
+    .from('posts')
+    .update({ content, reading_time: calcReadingTime(content) })
+    .eq('id', postId);
+  if (updateError) throw updateError;
+
+  await linkPostToProjects(postId, []);
+
+  console.log(`Post "${slug}" construído a partir de dados do Wakatime (sem commits em ${date}).`);
+  return { built: true, llmFallbackUsed: llm.usedFallback ?? false };
+}
+
 function buildCommitsDetailsBlock(groups: Record<string, RepoGroup>): string {
   const total = Object.values(groups).reduce((sum, g) => sum + g.commitEvents.length, 0);
   if (!total) return '';
@@ -690,12 +763,19 @@ async function main(): Promise<void> {
       }
     }
 
+    if (!newEvents.length) {
+      const { llmFallbackUsed } = await tryBuildWakatimeFallbackPost(date, slug, force);
+      await finishIngestRun(runId, {
+        status: 'success',
+        events_created: 0,
+        llm_fallback_used: llmFallbackUsed,
+        error_message: null,
+      });
+      return;
+    }
+
     if (!insertedCount && !force) {
-      console.log(
-        newEvents.length
-          ? 'Eventos encontrados já haviam sido processados (dedupe).'
-          : `Nenhum evento novo em ${date}.`,
-      );
+      console.log('Eventos encontrados já haviam sido processados (dedupe).');
       await finishIngestRun(runId, {
         status: 'success',
         events_created: 0,
