@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
 import { LogOut } from 'lucide-react';
+import AdminBottomNav from '../components/AdminBottomNav.astro';
 
 interface Props {
   title: string;
@@ -18,13 +19,13 @@ const path = Astro.url.pathname;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>~/{title} — Admin</title>
   </head>
-  <body>
+  <body class="pb-16 md:pb-0">
     <Toaster client:load />
     <header class="sticky top-0 z-50 h-14 border-b border-border bg-background/95 backdrop-blur-md">
       <div class="mx-auto flex h-full max-w-5xl items-center justify-between px-6">
         <div class="flex items-center gap-8">
           <a href="/admin" class="text-sm font-semibold">Admin</a>
-          <nav class="flex gap-6 text-sm">
+          <nav class="hidden gap-6 text-sm md:flex">
             <a
               href="/admin"
               class={path === '/admin' ? 'text-foreground' : 'text-muted-foreground transition-colors hover:text-foreground'}
@@ -63,7 +64,7 @@ const path = Astro.url.pathname;
         <form method="POST" action="/api/auth/logout" id="logout-form">
           <Button type="submit" variant="ghost" size="sm">
             <LogOut />
-            logout
+            <span class="hidden md:inline">logout</span>
           </Button>
         </form>
       </div>
@@ -71,6 +72,7 @@ const path = Astro.url.pathname;
     <main class="mx-auto max-w-5xl px-6 py-10 pb-32">
       <slot />
     </main>
+    <AdminBottomNav />
 
     <script>
       import { consumeFlashedToast } from '../lib/toast';

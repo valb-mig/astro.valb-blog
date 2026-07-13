@@ -105,6 +105,15 @@
   }
 }
 
+/* Esconde scrollbar do nav mobile do Header sem esconder a rolagem em si */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Scroll fade-in usado pelo IntersectionObserver em Base.astro */
 .fade-in {
   opacity: 0;
