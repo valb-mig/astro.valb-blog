@@ -156,6 +156,19 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
   widget SSR com rota própria (`/api/wakatime`) fazendo proxy com cache em
   memória (~5min). Ficou primeiro em `/blog`, movido pra dentro do hero/bio
   da home em 2026-07-10 (usuário pediu, tirado do `/posts`).
+- **Wakatime como fallback do ingest** (2026-07-12): quando `git log` não acha
+  nenhum commit no dia (em nenhum repo), em vez de não gerar post nenhum,
+  `tryBuildWakatimeFallbackPost` em `scripts/ingest.ts` busca
+  `getWakatimeSummaryForDate` (endpoint `summaries`, dia específico —
+  diferente do `stats/last_7_days` que o widget usa) e monta o **mesmo** post
+  "atividade" do dia, só que com narrativa baseada em tempo/linguagem em vez
+  de commits/PRs/releases (pedido explícito do usuário: não criar "outro tipo
+  de post"). Só monta se houver ≥5min registrados (`WAKATIME_MIN_SECONDS`) —
+  dia realmente ocioso continua sem post. Precisa de `WAKATIME_API_KEY` no
+  ambiente do GH Actions agora também (`.github/workflows/ingest.yml`), além
+  do `.env`/Vercel que já tinha pro widget. Nuance: o dia retornado pelo
+  Wakatime segue o timezone da conta, não UTC como o resto do pipeline —
+  pode desalinhar um pouco perto da virada do dia.
 - **Post↔Projeto N:N via tabela de junção** (2026-07-08) — em vez de array
   de slugs em `posts.project`, decisão explícita do usuário por
   normalização/query reversa mais fácil ("quais posts citam esse projeto").
