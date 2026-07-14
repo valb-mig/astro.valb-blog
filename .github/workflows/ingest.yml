@@ -2,7 +2,7 @@ name: Ingest GitHub Activity
 
 on:
   schedule:
-    - cron: '55 23 * * *'
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec tsx scripts/ingest.ts
+      - id: target-date
+        run: echo "date=$(date -u -d 'yesterday' +%F)" >> "$GITHUB_OUTPUT"
+
+      - run: pnpm exec tsx scripts/ingest.ts --date=${{ steps.target-date.outputs.date }}
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GH_USERNAME: ${{ secrets.GH_USERNAME }}
