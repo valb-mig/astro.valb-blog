@@ -15,10 +15,11 @@ const providerOptions = [
 const { data: settingsRows } = await db
   .from('settings')
   .select('key,value')
-  .in('key', ['llm_provider', 'llm_fallback_enabled']);
+  .in('key', ['llm_provider', 'llm_fallback_enabled', 'maintenance_mode']);
 const settings = Object.fromEntries((settingsRows ?? []).map((s) => [s.key, s.value]));
 const currentProvider = settings.llm_provider ?? 'groq';
 const fallbackEnabled = (settings.llm_fallback_enabled ?? 'true') === 'true';
+const maintenanceEnabled = (settings.maintenance_mode ?? 'false') === 'true';
 
 const hasGroqKey = !!import.meta.env.GROQ_API_KEY;
 const hasGeminiKey = !!import.meta.env.GEMINI_API_KEY;
@@ -61,6 +62,18 @@ const hasGeminiKey = !!import.meta.env.GEMINI_API_KEY;
       </div>
     </div>
 
+    <div class="flex items-start gap-2.5">
+      <input type="hidden" id="f-maintenance-mode" value={String(maintenanceEnabled)} />
+      <SwitchField client:load hiddenInputId="f-maintenance-mode" initialChecked={maintenanceEnabled} />
+      <div class="flex flex-col gap-1">
+        <Label htmlFor="f-maintenance-mode">modo manutenção</Label>
+        <p class="text-xs text-muted-foreground">
+          bloqueia as páginas públicas do site (mostra uma tela de manutenção) pra quem não estiver
+          logado como admin. API e RSS continuam funcionando.
+        </p>
+      </div>
+    </div>
+
     <div class="flex items-center gap-4">
       <Button type="submit" id="save-btn">salvar</Button>
     </div>
@@ -92,11 +105,13 @@ const hasGeminiKey = !!import.meta.env.GEMINI_API_KEY;
 
     const provider = (document.getElementById('f-llm-provider') as HTMLInputElement).value;
     const fallbackEnabled = (document.getElementById('f-llm-fallback') as HTMLInputElement).value === 'true';
+    const maintenanceEnabled = (document.getElementById('f-maintenance-mode') as HTMLInputElement).value === 'true';
 
     try {
       await Promise.all([
         saveSetting('llm_provider', provider),
         saveSetting('llm_fallback_enabled', String(fallbackEnabled)),
+        saveSetting('maintenance_mode', String(maintenanceEnabled)),
       ]);
       toast.success('Salvo.');
     } catch (err) {

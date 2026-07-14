@@ -6,13 +6,15 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RefreshCw } from 'lucide-react';
 
-const [{ count: postsCount }, { count: projectsCount }, { count: reactionsCount }, { data: lastRun }] =
+const [{ count: postsCount }, { count: projectsCount }, { count: reactionsCount }, { data: recentRuns }] =
   await Promise.all([
     db.from('posts').select('*', { count: 'exact', head: true }),
     db.from('projects').select('*', { count: 'exact', head: true }),
     db.from('post_reactions').select('*', { count: 'exact', head: true }),
-    db.from('ingest_runs').select('*').order('started_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('ingest_runs').select('*').order('started_at', { ascending: false }).limit(10),
   ]);
+
+const runs = recentRuns ?? [];
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   success: 'default',
@@ -53,24 +55,28 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 
   <Card className="max-w-lg">
     <CardHeader>
-      <CardTitle className="text-sm font-medium">Último ingest</CardTitle>
+      <CardTitle className="text-sm font-medium">Ingests recentes</CardTitle>
     </CardHeader>
     <CardContent className="flex flex-col gap-3">
       {
-        lastRun ? (
-          <>
-            <div class="flex items-center gap-2 text-sm">
-              <Badge variant={statusVariant[lastRun.status] ?? 'outline'}>{lastRun.status}</Badge>
-              <span class="text-muted-foreground">
-                {lastRun.target_date} · {lastRun.trigger}
-              </span>
-            </div>
-            <p class="text-xs text-muted-foreground">
-              {lastRun.events_created} evento(s) criado(s)
-              {lastRun.llm_fallback_used ? ' · fallback Gemini→Groq usado' : ''}
-            </p>
-            {lastRun.error_message && <p class="text-xs text-destructive">{lastRun.error_message}</p>}
-          </>
+        runs.length ? (
+          <ul class="flex flex-col divide-y divide-border">
+            {runs.map((run) => (
+              <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+                <div class="flex items-center gap-2 text-sm">
+                  <Badge variant={statusVariant[run.status] ?? 'outline'}>{run.status}</Badge>
+                  <span class="text-muted-foreground">
+                    {run.target_date} · {run.trigger}
+                  </span>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {run.events_created} evento(s) criado(s)
+                  {run.llm_fallback_used ? ' · fallback Gemini→Groq usado' : ''}
+                </p>
+                {run.error_message && <p class="text-xs text-destructive">{run.error_message}</p>}
+              </li>
+            ))}
+          </ul>
         ) : (
           <p class="text-sm text-muted-foreground">nenhuma run registrada ainda.</p>
         )
