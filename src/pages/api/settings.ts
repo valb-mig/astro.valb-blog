@@ -11,9 +11,14 @@ export const GET: APIRoute = async ({ cookies }) => {
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
   const settings = Object.fromEntries((data ?? []).map((s) => [s.key, s.value]));
-  return new Response(JSON.stringify(settings), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify({
+      ...settings,
+      hasGroqKey: !!import.meta.env.GROQ_API_KEY,
+      hasGeminiKey: !!import.meta.env.GEMINI_API_KEY,
+    }),
+    { headers: { 'Content-Type': 'application/json' } },
+  );
 };
 
 export const POST: APIRoute = async ({ request, cookies }) => {

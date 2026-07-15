@@ -1,5 +1,5 @@
 ---
-import Admin from '../../../layouts/Admin.astro';
+import Base from '../../../layouts/Base.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,8 @@ const statusOptions = [
 ];
 ---
 
-<Admin title="Novo Projeto">
+<Base title="Novo Projeto" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Projects', href: '/projects' }, { label: 'novo' }]}>
+  <div class="mx-auto max-w-3xl px-6 py-16">
   <h1 class="mb-8 text-xl font-semibold">Novo projeto</h1>
 
   <form id="proj-form" class="flex flex-col gap-6">
@@ -68,10 +69,11 @@ const statusOptions = [
 
     <div class="flex items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar projeto</Button>
-      <a href="/admin/projects" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
+      <a href="/projects" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
     </div>
   </form>
-</Admin>
+  </div>
+</Base>
 
 <script>
   const dateInput = document.getElementById('f-date') as HTMLInputElement;
@@ -122,8 +124,9 @@ const statusOptions = [
     });
 
     if (res.ok) {
+      const created = await res.json();
       flashToast('success', 'Projeto salvo.');
-      window.location.href = '/admin/projects';
+      window.location.href = `/projects/${created.slug}`;
     } else {
       const { error } = await res.json();
       toast.error(error ?? 'Erro ao salvar');

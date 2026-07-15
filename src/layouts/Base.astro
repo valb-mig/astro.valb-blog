@@ -4,7 +4,10 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import BottomNav from '../components/BottomNav.astro';
+import UpdatesBanner from '../components/UpdatesBanner.astro';
 import { CommandMenu } from '../components/CommandMenu';
+import { Toaster } from '@/components/ui/sonner';
+import { db } from '../lib/db';
 
 interface Props {
   title: string;
@@ -24,6 +27,15 @@ const {
 } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+
+const { data: latestUpdate } = await db
+  .from('updates')
+  .select('id,message,ref_url')
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+const isAdmin = Astro.locals.isAdmin;
 ---
 
 <!doctype html>
@@ -54,6 +66,14 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body class="flex min-h-screen flex-col pb-16 md:pb-0">
+    {isAdmin && (
+      <div
+        class="pointer-events-none fixed inset-0 z-[100] border-4 border-yellow-400/90"
+        aria-hidden="true"
+      />
+    )}
+    <Toaster client:load />
+    {latestUpdate && <UpdatesBanner update={latestUpdate} />}
     <Header />
     {breadcrumb && (
       <div class="border-b border-border">
@@ -68,6 +88,11 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     </main>
     <Footer />
     <BottomNav />
+
+    <script>
+      import { consumeFlashedToast } from '../lib/toast';
+      consumeFlashedToast();
+    </script>
 
     <script>
       // Client-side syntax highlighting for rendered markdown

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
 
 const token = Astro.cookies.get(SESSION_COOKIE)?.value ?? '';
-if (verifySession(token)) return Astro.redirect('/admin/posts');
+if (verifySession(token)) return Astro.redirect('/');
 ---
 
 <!doctype html>
@@ -68,7 +68,7 @@ if (verifySession(token)) return Astro.redirect('/admin/posts');
 
         if (res.ok) {
           flashToast('success', 'Login realizado.');
-          window.location.href = '/admin/posts';
+          window.location.href = '/';
         } else {
           const { error } = await res.json();
           toast.error(error ?? 'Erro desconhecido');

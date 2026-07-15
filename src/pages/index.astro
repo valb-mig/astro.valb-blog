@@ -4,11 +4,15 @@ import PostCard from '../components/PostCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import WakatimeWidget from '../components/WakatimeWidget.astro';
 import { Button } from '@/components/ui/button';
-import { Cat, GitCommit, Rss } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { RefreshCw } from 'lucide-react';
 import { db } from '../lib/db';
 import type { Post, Project } from '../lib/db';
 
-const [postsRes, projectsRes, postProjectRes] = await Promise.all([
+const isAdmin = Astro.locals.isAdmin;
+
+const [postsRes, projectsRes, postProjectRes, adminStatsRes] = await Promise.all([
   db
     .from('posts')
     .select('id,slug,title,description,date,tags,reading_time')
@@ -26,7 +30,32 @@ const [postsRes, projectsRes, postProjectRes] = await Promise.all([
     .from('post_projects')
     .select('post_id, project_id, projects(slug, title), posts!inner(draft)')
     .eq('posts.draft', false),
+  isAdmin
+    ? Promise.all([
+        db.from('posts').select('*', { count: 'exact', head: true }),
+        db.from('projects').select('*', { count: 'exact', head: true }),
+        db.from('post_reactions').select('*', { count: 'exact', head: true }),
+        db.from('ingest_runs').select('*').order('started_at', { ascending: false }).limit(10),
+      ])
+    : null,
 ]);
+
+let adminStats: { postsCount: number; projectsCount: number; reactionsCount: number; runs: any[] } | null = null;
+if (adminStatsRes) {
+  const [{ count: postsCount }, { count: projectsCount }, { count: reactionsCount }, { data: recentRuns }] = adminStatsRes;
+  adminStats = {
+    postsCount: postsCount ?? 0,
+    projectsCount: projectsCount ?? 0,
+    reactionsCount: reactionsCount ?? 0,
+    runs: recentRuns ?? [],
+  };
+}
+
+const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+  success: 'default',
+  error: 'outline',
+  running: 'secondary',
+};
 
 const latestPosts = (postsRes.data ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'>[];
 const activeProjects = (projectsRes.data ?? []) as Pick<Project, 'id'|'slug'|'title'|'description'|'date'|'tags'|'status'|'repo'>[];
@@ -86,6 +115,72 @@ for (const row of postProjectRows) {
       </div>
     </section>
 
+    <!-- Admin dashboard -->
+    {adminStats && (
+      <section class="fade-in pb-20">
+        <h2 class="mb-6 text-lg font-semibold">Painel admin</h2>
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Posts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p class="text-2xl font-semibold">{adminStats.postsCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Projects</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p class="text-2xl font-semibold">{adminStats.projectsCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Reactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p class="text-2xl font-semibold">{adminStats.reactionsCount}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="max-w-lg">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Ingests recentes</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {adminStats.runs.length ? (
+              <ul class="flex flex-col divide-y divide-border">
+                {adminStats.runs.map((run) => (
+                  <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+                    <div class="flex items-center gap-2 text-sm">
+                      <Badge variant={statusVariant[run.status] ?? 'outline'}>{run.status}</Badge>
+                      <span class="text-muted-foreground">
+                        {run.target_date} · {run.trigger}
+                      </span>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      {run.events_created} evento(s) criado(s)
+                      {run.llm_fallback_used ? ' · fallback Gemini→Groq usado' : ''}
+                    </p>
+                    {run.error_message && <p class="text-xs text-destructive">{run.error_message}</p>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p class="text-sm text-muted-foreground">nenhuma run registrada ainda.</p>
+            )}
+            <Button id="run-ingest-btn" size="sm" className="flex w-fit items-center gap-1.5">
+              <RefreshCw size={14} />
+              rodar ingest agora
+            </Button>
+          </CardContent>
+        </Card>
+      </section>
+    )}
+
     <!-- Latest Posts -->
     <section class="pb-20">
       <div class="mb-6 flex items-baseline justify-between">
@@ -143,3 +238,28 @@ for (const row of postProjectRows) {
     )}
   </div>
 </Base>
+
+{adminStats && (
+  <script>
+    import { toast } from 'sonner';
+
+    const btn = document.getElementById('run-ingest-btn') as HTMLButtonElement;
+    btn?.addEventListener('click', async () => {
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = 'disparando...';
+
+      const res = await fetch('/api/admin/ingest-trigger', { method: 'POST' });
+
+      if (res.ok) {
+        toast.success('Workflow disparado. Acompanhe no GitHub Actions.');
+      } else {
+        const { error } = await res.json().catch(() => ({ error: null }));
+        toast.error(error ?? 'Falha ao disparar ingest.');
+      }
+
+      btn.disabled = false;
+      btn.textContent = original;
+    });
+  </script>
+)}
