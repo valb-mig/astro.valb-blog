@@ -56,6 +56,33 @@ export type IngestRun = {
   error_message: string | null;
 };
 
+export type StackSection = {
+  id: string;
+  title: string;
+  order_index: number;
+  created_at: string;
+};
+
+export type StackItem = {
+  id: string;
+  section_id: string;
+  label: string;
+  url: string | null;
+  icon: string | null;
+  icon_color: string | null;
+  order_index: number;
+  created_at: string;
+};
+
+export type Update = {
+  id: string;
+  message: string;
+  source: 'manual' | 'auto';
+  kind: 'post' | 'project' | 'stack_item' | null;
+  ref_url: string | null;
+  created_at: string;
+};
+
 // import.meta.env é preenchido pelo Vite/Astro; fora desse contexto (ex:
 // scripts/ingest.ts rodando via tsx) cai pra process.env.
 const SUPABASE_URL = import.meta.env?.SUPABASE_URL ?? process.env.SUPABASE_URL;
