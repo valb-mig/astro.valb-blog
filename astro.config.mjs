@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@astrojs/react';
 
 export default defineConfig({
-  site: 'https://fake', // TODO: update before deploying
+  site: 'https://valb-blog.vercel.app',
   output: 'server',
   adapter: vercel(),
   integrations: [icon(), react()],
