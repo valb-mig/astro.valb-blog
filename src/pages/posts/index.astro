@@ -2,19 +2,25 @@
 import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 import { db } from '../../lib/db';
 import type { Post } from '../../lib/db';
 
+const isAdmin = Astro.locals.isAdmin;
+
+let postsQuery = db
+  .from('posts')
+  .select('id,slug,title,description,date,tags,reading_time,draft')
+  .order('date', { ascending: false });
+if (!isAdmin) postsQuery = postsQuery.eq('draft', false);
+
 const [{ data: allPosts }, { data: postProjectRows }] = await Promise.all([
-  db
-    .from('posts')
-    .select('id,slug,title,description,date,tags,reading_time')
-    .eq('draft', false)
-    .order('date', { ascending: false }),
+  postsQuery,
   db.from('post_projects').select('post_id, projects(slug, title)'),
 ]);
 
-const posts = (allPosts ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'>[];
+const posts = (allPosts ?? []) as Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'|'draft'>[];
 
 type PostProjectRow = { post_id: string; projects: { slug: string; title: string } | null };
 const projectsByPostId: Record<string, { slug: string; title: string }[]> = {};
@@ -50,12 +56,22 @@ const filtered = activeTag
 
     <!-- Main content -->
     <main>
-      <div class="mb-8">
-        <h1 class="text-2xl font-semibold">Posts</h1>
-        <p class="mt-1 text-sm text-muted-foreground">
-          {filtered.length} post{filtered.length !== 1 ? 's' : ''}
-          {activeTag && ` · filtrando "${activeTag}"`}
-        </p>
+      <div class="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold">Posts</h1>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {filtered.length} post{filtered.length !== 1 ? 's' : ''}
+            {activeTag && ` · filtrando "${activeTag}"`}
+          </p>
+        </div>
+        {isAdmin && (
+          <Button asChild size="sm" className="shrink-0">
+            <a href="/admin/posts/new" class="flex items-center gap-1">
+              <Plus size={14} />
+              novo post
+            </a>
+          </Button>
+        )}
       </div>
 
       <!-- Mobile tag row -->
@@ -78,6 +94,8 @@ const filtered = activeTag
               tags={post.tags}
               projects={projectsByPostId[post.id] ?? []}
               reading_time={post.reading_time}
+              draft={post.draft}
+              isAdmin={isAdmin}
               delay={i * 40}
             />
           ))}

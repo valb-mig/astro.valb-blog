@@ -1,6 +1,8 @@
 ---
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { DeleteButton } from '@/components/DeleteButton';
+import { Pencil } from 'lucide-react';
 
 interface Props {
   id: string;
@@ -11,10 +13,13 @@ interface Props {
   tags?: string[];
   projects?: { slug: string; title: string }[];
   reading_time?: number;
+  draft?: boolean;
+  isAdmin?: boolean;
   delay?: number;
 }
 
 const {
+  id,
   slug,
   title,
   description,
@@ -22,6 +27,8 @@ const {
   tags = [],
   projects = [],
   reading_time = 1,
+  draft = false,
+  isAdmin = false,
   delay = 0,
 } = Astro.props;
 
@@ -32,19 +39,37 @@ const dateStr = new Date(date).toLocaleDateString('pt-BR', {
 });
 ---
 
-<a href={`/posts/${slug}`} class="fade-in group block h-full" style={`transition-delay: ${delay}ms`}>
-  <Card className="h-full transition-colors group-hover:ring-foreground/20">
+<div class="fade-in h-full" style={`transition-delay: ${delay}ms`}>
+  <Card className="h-full transition-colors hover:ring-foreground/20">
     <CardContent className="flex h-full flex-col gap-3">
-      <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span class="whitespace-nowrap">{dateStr}</span>
-        <div class="flex flex-wrap items-center gap-1.5">
-          {projects.map((p) => <Badge variant="secondary">{p.title}</Badge>)}
-        </div>
+        {isAdmin && (
+          <div class="flex shrink-0 items-center gap-0.5">
+            <a
+              href={`/admin/posts/${id}`}
+              title="editar"
+              class="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+            >
+              <Pencil size={12} />
+            </a>
+            <DeleteButton id={id} title={title} resource="posts" label="" client:load />
+          </div>
+        )}
       </div>
 
-      <h3 class="line-clamp-2 text-base font-semibold transition-colors group-hover:text-foreground/80">
-        {title}
-      </h3>
+      {(draft || projects.length > 0) && (
+        <div class="flex flex-wrap items-center gap-1.5">
+          {draft && <Badge variant="outline">draft</Badge>}
+          {projects.map((p) => <Badge variant="secondary">{p.title}</Badge>)}
+        </div>
+      )}
+
+      <a href={`/posts/${slug}`}>
+        <h3 class="line-clamp-2 text-base font-semibold transition-colors hover:text-foreground/80">
+          {title}
+        </h3>
+      </a>
 
       <p class="line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">
         {description}
@@ -58,4 +83,4 @@ const dateStr = new Date(date).toLocaleDateString('pt-BR', {
       </div>
     </CardContent>
   </Card>
-</a>
+</div>
