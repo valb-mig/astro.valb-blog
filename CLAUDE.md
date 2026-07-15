@@ -34,20 +34,43 @@ No SQL migrations are versioned in the repo (`supabase-schema.sql` was removed) 
 
 ### Routing
 
+Admin isn't a separate app (as of 2026-07-15) — browsing pages (posts, projects,
+atividade, about) are the same pages a visitor sees, just privilege-aware.
+`Astro.locals.isAdmin` is computed once in `src/middleware.ts` for every
+request (typed in `src/env.d.ts`) and read directly in pages/components —
+no per-page cookie re-verification needed. `layouts/Admin.astro` is gone
+entirely — every page (including the create/edit forms and the login page)
+now shares the same visual language, `Base.astro`. When `isAdmin`, `Base.astro`
+renders a fixed yellow border frame around the whole viewport (VSCode
+debug-mode style, `pointer-events-none`) and the Header shows a yellow logout
+button — the only persistent visual cue that you're in admin mode, since
+otherwise the site looks identical to what a visitor sees. Settings, About,
+and Updates config are all `Dialog` modals opened from the Header/`/about`,
+not pages. The dashboard (stats + ingest trigger) isn't a page either; it
+renders as admin-only boxes on `/` (home). Only `/admin/login` and the
+create/edit forms remain as actual pages under `/admin/*` (forms are a
+genuinely different UI — multi-field + `MarkdownEditor` — not just "more
+data"; login is the one place `isAdmin` is still false).
+
 | Route | File |
 |---|---|
-| `/` | `src/pages/index.astro` |
-| `/posts` | `src/pages/posts/index.astro` — tag filter via `?tag=` (route renamed from `/blog` on 2026-07-10, "blog" didn't fit the nav naming) |
-| `/posts/[slug]` | `src/pages/posts/[slug].astro` — reactions below content |
-| `/atividade` | `src/pages/atividade/index.astro` — paginated feed of `source_events`, grouped by UTC day |
-| `/projects`, `/projects/[slug]` | `src/pages/projects/` — language/stack badges per repo |
+| `/` | `src/pages/index.astro` — admin-only: stats cards + "ingests recentes" + "rodar ingest agora" button |
+| `/posts` | `src/pages/posts/index.astro` — tag filter via `?tag=`; admin sees drafts (badge on `PostCard`) + "+ novo post" |
+| `/posts/[slug]` | `src/pages/posts/[slug].astro` — reactions below content; admin sees an editar/deletar toolbar + draft badge |
+| `/atividade` | `src/pages/atividade/index.astro` — paginated feed of `source_events`, grouped by UTC day; admin gets a repo filter + delete per event |
+| `/projects`, `/projects/[slug]` | `src/pages/projects/` — language/stack badges per repo; same admin treatment as posts (drafts, edit/delete on `ProjectCard` + detail toolbar, "+ novo projeto") |
 | `/projects/graph` | interactive project↔post graph |
-| `/about` | `src/pages/about.astro` |
+| `/about` | `src/pages/about.astro` — stack sections/items public; admin sees a "configurar" button opening a `Dialog` with `StackAdminPanel` (no more `/admin/about` page) |
 | `/rss.xml` | `src/pages/rss.xml.ts` |
-| `/admin/*` | login, posts (list/new/edit), projects (list/new/edit) — gated by `src/middleware.ts` |
+| `/admin/login` | session cookie only |
+| `/admin/posts/new`, `/admin/posts/[id]` | create/edit forms, `Base.astro` layout |
+| `/admin/projects/new`, `/admin/projects/[id]` | same as posts |
 | `/api/posts`, `/api/projects` (+ `[id]`) | CRUD, public GET filters `draft=false`, admin sees all |
 | `/api/reactions` | anonymous, fingerprint-based, toggles a reaction on/off |
 | `/api/events` | admin-only, lists `source_events` for a repo (used by the post editor's "+ evento" embed picker) |
+| `/api/icons/search`, `/api/icons/[slug]` | admin-only, icon search/lookup for the stack-item icon picker (`src/lib/simple-icons.server.ts`, backed by `@iconify-json/simple-icons`) |
+| `/api/updates` (+ `[id]`) | GET public (paginated, `?before=`), POST/DELETE admin-only — backs `UpdatesAdminPanel.tsx` (opened as a modal from the Header, admin-only, no more `/admin/updates` page) |
+| `/api/settings` | GET admin-only (also returns `hasGroqKey`/`hasGeminiKey` booleans, never the actual secrets), POST admin-only upsert — backs `SettingsAdminPanel.tsx` (modal from the Header gear icon, no more `/admin/settings` page) |
 | `/api/wakatime` | proxy + 5min in-memory cache for Wakatime stats — widget lives on the home hero only, not `/posts` |
 | `/api/auth/login`, `/api/auth/logout` | admin session (HMAC-signed cookie, `src/lib/auth.ts`) |
 
