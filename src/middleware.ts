@@ -17,6 +17,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   const path = ctx.url.pathname;
   const token = ctx.cookies.get(SESSION_COOKIE)?.value ?? '';
   const isAdmin = !!verifySession(token);
+  ctx.locals.isAdmin = isAdmin;
 
   if (path.startsWith('/admin')) {
     if (path === '/admin/login') return next();

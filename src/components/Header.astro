@@ -1,6 +1,9 @@
 ---
 import { Button } from '@/components/ui/button';
-import { Rss, Settings, Search } from 'lucide-react';
+import { Rss, Settings, Search, LogOut } from 'lucide-react';
+import { NotificationBell } from '@/components/NotificationBell';
+import { UpdatesConfigDialog } from '@/components/UpdatesConfigDialog';
+import { SettingsDialog } from '@/components/SettingsDialog';
 
 const navItems = [
   { label: 'Posts', href: '/posts' },
@@ -10,6 +13,7 @@ const navItems = [
 ];
 
 const current = Astro.url.pathname;
+const isAdmin = Astro.locals.isAdmin;
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
@@ -57,11 +61,32 @@ const current = Astro.url.pathname;
         </a>
       </Button>
 
-      <Button variant="ghost" size="icon" asChild>
-        <a href="/admin" title="Admin" aria-label="Admin" class="text-muted-foreground hover:text-foreground">
-          <Settings />
-        </a>
-      </Button>
+      <NotificationBell client:load />
+
+      {isAdmin && <UpdatesConfigDialog client:load />}
+
+      {isAdmin ? (
+        <SettingsDialog client:load />
+      ) : (
+        <Button variant="ghost" size="icon" asChild>
+          <a href="/admin/login" title="Settings" aria-label="Settings" class="text-muted-foreground hover:text-foreground">
+            <Settings />
+          </a>
+        </Button>
+      )}
+
+      {isAdmin && (
+        <Button
+          id="header-logout-btn"
+          variant="ghost"
+          size="icon"
+          title="logout"
+          aria-label="logout"
+          className="text-yellow-500 hover:text-yellow-400"
+        >
+          <LogOut />
+        </Button>
+      )}
     </div>
   </div>
 </header>
@@ -75,4 +100,9 @@ const current = Astro.url.pathname;
   if (kbd && /Mac|iPhone|iPad/.test(navigator.userAgent)) {
     kbd.textContent = '⌘K';
   }
+
+  document.getElementById('header-logout-btn')?.addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/admin/login';
+  });
 </script>

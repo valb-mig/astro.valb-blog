@@ -1,5 +1,5 @@
 ---
-import Admin from '../../../layouts/Admin.astro';
+import Base from '../../../layouts/Base.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { MultiSelect } from '@/components/MultiSelect';
 import { SwitchField } from '@/components/SwitchField';
@@ -17,7 +17,8 @@ const { data: allProjects } = await db.from('projects').select('id,title').order
 const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.title }));
 ---
 
-<Admin title="Novo Post">
+<Base title="Novo Post" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Posts', href: '/posts' }, { label: 'novo' }]}>
+  <div class="mx-auto max-w-3xl px-6 py-16">
   <h1 class="mb-8 text-xl font-semibold">Novo post</h1>
 
   <form id="post-form" class="flex flex-col gap-6">
@@ -84,10 +85,11 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
 
     <div class="flex items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar post</Button>
-      <a href="/admin/posts" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
+      <a href="/posts" class="text-sm text-muted-foreground hover:text-foreground">cancelar</a>
     </div>
   </form>
-</Admin>
+  </div>
+</Base>
 
 <script>
   // Auto-fill today's date
@@ -146,8 +148,9 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
     });
 
     if (res.ok) {
+      const created = await res.json();
       flashToast('success', 'Post salvo.');
-      window.location.href = '/admin/posts';
+      window.location.href = `/posts/${created.slug}`;
     } else {
       const { error } = await res.json();
       toast.error(error ?? 'Erro ao salvar');

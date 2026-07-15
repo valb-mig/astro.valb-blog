@@ -1,36 +1,100 @@
 ---
 import Base from '../layouts/Base.astro';
+import { Icon } from 'astro-icon/components';
+import { StackConfigDialog } from '@/components/StackConfigDialog';
+import { db } from '../lib/db';
+import { iconName, faviconUrl } from '../lib/icons';
+import type { StackSection, StackItem } from '../lib/db';
+
+const isAdmin = Astro.locals.isAdmin;
+
+const { data: sections } = await db
+  .from('stack_sections')
+  .select('*, stack_items(*)')
+  .order('order_index', { ascending: true })
+  .order('order_index', { ascending: true, referencedTable: 'stack_items' });
+
+const stackSections = (sections ?? []) as (StackSection & { stack_items: StackItem[] })[];
 ---
 
 <Base title="About — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'About' }]}>
-  <div class="mx-auto max-w-2xl px-6 py-20">
+  <div class="mx-auto max-w-4xl px-6 py-20">
     <h1 class="mb-10 text-2xl font-semibold">Sobre mim</h1>
 
-    <div class="fade-in prose prose-invert prose-sm max-w-none">
-      <p>
-        Olá! Eu sou o <strong>Ivalber Souza</strong> (também conhecido como valb) dev backend
-        movido a curiosidade e café. Gosto de entender como as coisas funcionam por dentro,
-        então arquitetura de sistema é praticamente um hobby pra mim (sim, eu sei).
-      </p>
-      <p>
-        Esse blog é meio que um caderno público: registro o que ando construindo, os problemas
-        que resolvo (ou pelo menos tento) e as ideias que ficam martelando na cabeça. Sem
-        calendário fixo, sem categoria rígida publico quando tenho algo que valha a pena contar.
-      </p>
+    <div class="grid gap-16 md:grid-cols-[1.3fr_1fr]">
+      <div class="fade-in prose prose-invert prose-sm max-w-none">
+        <p>
+          Olá! Eu sou o <strong>Ivalber Souza</strong> (também conhecido como valb) dev backend
+          movido a curiosidade e café. Gosto de entender como as coisas funcionam por dentro,
+          então arquitetura de sistema é praticamente um hobby pra mim (sim, eu sei).
+        </p>
+        <p>
+          Esse blog é meio que um caderno público: registro o que ando construindo, os problemas
+          que resolvo (ou pelo menos tento) e as ideias que ficam martelando na cabeça. Sem
+          calendário fixo, sem categoria rígida publico quando tenho algo que valha a pena contar.
+        </p>
 
-      <h2>O que você encontra aqui</h2>
-      <p>
-        Posts técnicos, devlogs de projeto e, de vez em quando, um desabafo sobre alguma decisão
-        de arquitetura que me deu trabalho. Boa parte do conteúdo nasce direto da minha atividade
-        no GitHub o blog se alimenta sozinho do que eu ando fazendo.
-      </p>
+        <h2>O que você encontra aqui</h2>
+        <p>
+          Posts técnicos, devlogs de projeto e, de vez em quando, um desabafo sobre alguma decisão
+          de arquitetura que me deu trabalho. Boa parte do conteúdo nasce direto da minha atividade
+          no GitHub o blog se alimenta sozinho do que eu ando fazendo.
+        </p>
 
-      <h2>Contato</h2>
-      <p>
-        Me acha no <a href="https://github.com/valb-mig" target="_blank" rel="noopener">GitHub</a> ou
-        manda um email: <a href="mailto:valb.mig@gmail.com">valb.mig@gmail.com</a> — eu respondo
-        (às vezes rápido, às vezes não).
-      </p>
+        <h2>Contato</h2>
+        <p>
+          Me acha no <a href="https://github.com/valb-mig" target="_blank" rel="noopener">GitHub</a> ou
+          manda um email: <a href="mailto:valb.mig@gmail.com">valb.mig@gmail.com</a> — eu respondo
+          (às vezes rápido, às vezes não).
+        </p>
+      </div>
+
+      {(stackSections.length > 0 || isAdmin) && (
+        <div class="fade-in flex flex-col gap-8">
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="text-lg font-semibold">Ferramentas</h2>
+            {isAdmin && <StackConfigDialog client:load />}
+          </div>
+          {stackSections.map((section) => (
+            <div>
+              <h3 class="mb-3 text-sm font-medium text-muted-foreground">{section.title}</h3>
+              <div class="flex flex-wrap gap-2">
+                {(section.stack_items ?? [])
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map((item) => {
+                    const icon = item.icon ? (
+                      <Icon
+                        name={iconName(item.icon)}
+                        width={16}
+                        height={16}
+                        class="shrink-0"
+                        style={item.icon_color ? `color:${item.icon_color}` : undefined}
+                      />
+                    ) : item.url ? (
+                      <img src={faviconUrl(item.url)} alt="" class="size-4 shrink-0" />
+                    ) : null;
+                    return item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener"
+                        class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
+                      >
+                        {icon}
+                        {item.label}
+                      </a>
+                    ) : (
+                      <span class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground">
+                        {icon}
+                        {item.label}
+                      </span>
+                    );
+                  })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   </div>
 </Base>

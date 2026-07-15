@@ -1,5 +1,5 @@
 ---
-import Admin from '../../../layouts/Admin.astro';
+import Base from '../../../layouts/Base.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { MultiSelect } from '@/components/MultiSelect';
 import { SwitchField } from '@/components/SwitchField';
@@ -13,7 +13,7 @@ import type { Post } from '../../../lib/db';
 const { id } = Astro.params;
 const { data: post, error } = await db.from('posts').select('*').eq('id', id!).single();
 
-if (error || !post) return Astro.redirect('/admin/posts');
+if (error || !post) return Astro.redirect('/posts');
 
 const p = post as Post;
 const dateStr = new Date(p.date).toISOString().split('T')[0];
@@ -35,7 +35,11 @@ const { data: linkedProjectRepos } = currentProjectIds.length
 const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as string))];
 ---
 
-<Admin title={`Editar: ${p.title}`}>
+<Base
+  title={`Editar: ${p.title}`}
+  breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Posts', href: '/posts' }, { label: p.slug, href: `/posts/${p.slug}` }, { label: 'editar' }]}
+>
+  <div class="mx-auto max-w-3xl px-6 py-16">
   <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
     <h1 class="text-xl font-semibold">Editar post</h1>
   </div>
@@ -106,14 +110,14 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
 
     <div class="flex flex-wrap items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar alterações</Button>
-      <a href={`/posts/${p.slug}`} target="_blank" class="text-sm text-muted-foreground hover:text-foreground">ver post ↗</a>
-      <a href="/admin/posts" class="text-sm text-muted-foreground hover:text-foreground">voltar</a>
+      <a href={`/posts/${p.slug}`} class="text-sm text-muted-foreground hover:text-foreground">voltar ao post</a>
       <div class="ml-auto">
-        <DeleteButton id={p.id} title={p.title} resource="posts" redirectTo="/admin/posts" client:load />
+        <DeleteButton id={p.id} title={p.title} resource="posts" redirectTo="/posts" client:load />
       </div>
     </div>
   </form>
-</Admin>
+  </div>
+</Base>
 
 <script>
   import { toast } from 'sonner';

@@ -4,6 +4,22 @@ Ver `TODO.md` na raiz do repo pra notas originais em prosa (brainstorm bruto
 do refactor). Este arquivo é a versão estruturada/viva, cruzada com o estado
 real do código.
 
+## Refactor de UX do admin (2026-07-15, concluído)
+
+- [x] Admin deixou de ser "app separada" — posts/projects/atividade agora são as mesmas
+      páginas públicas, privilege-aware via `Astro.locals.isAdmin` (draft visível, badge,
+      editar/deletar no card e no detalhe, filtro de repo em `/atividade`). About/Updates/
+      Settings viram modal (`StackConfigDialog`/`UpdatesConfigDialog`/`SettingsDialog`).
+      Dashboard (stats + botão de ingest) virou seção admin-only em `/`. Formulários de
+      criar/editar continuam em `/admin/*` mas usam `Base.astro` (header público) —
+      `layouts/Admin.astro` foi **deletado por completo** (settings era o último uso).
+      Todo o site usa só `Base.astro` agora. Modo admin sinalizado por borda amarela fixa
+      no viewport + botão de logout amarelo no Header (estilo debug mode do VSCode). Ver
+      `.claude/memory` → "Admin UX Refactor" (sessão) pra detalhe completo.
+      Bugs achados no processo: `Base.astro` não tinha `<Toaster />`/`consumeFlashedToast()`
+      (ações admin em página pública não davam feedback); banner de updates só aparecia na
+      home (query movida pra dentro de `Base.astro`, agora aparece em todo site).
+
 ## Pendente — antes de produção
 
 - [x] Confirmar se as tabelas existem no Supabase real — confirmado em
@@ -13,6 +29,12 @@ real do código.
       fonte de verdade — qualquer schema novo precisa de migração manual
 - [ ] Configurar `.env` de produção: Supabase URL/service key, `ADMIN_USERNAME`/
       `ADMIN_PASSWORD`, `SESSION_SECRET`, `GH_TOKEN`/`GH_USERNAME`, `GROQ_API_KEY`
+- [ ] Segmentar banco de teste e de produção — hoje `SUPABASE_URL`/
+      `SUPABASE_SERVICE_ROLE_KEY` do `.env` local apontam pro mesmo Supabase
+      usado em prod (sem instância separada de dev/staging). Precisa de um
+      projeto Supabase próprio pra dev local + variável de ambiente separada,
+      senão teste local escreve dado real (postado em 2026-07-15 junto com
+      as tabelas novas de `stack_sections`/`stack_items`/`updates`)
 - [ ] Atualizar `site` em `astro.config.mjs` (ainda `'https://fake'`)
 - [x] Configurar secrets do GitHub Actions pro `.github/workflows/ingest.yml`
       (2026-07-10): `GH_TOKEN`, `GH_USERNAME`, `GROQ_API_KEY`, `GEMINI_API_KEY`,
@@ -59,6 +81,15 @@ real do código.
       Também adicionado na home (`/`), entre o hero e "posts recentes"
 - [ ] Aba "Sobre mim" com fotos reais (usuário disse que manda depois; hoje
       é placeholder)
+- [x] About configurável + ícones (2026-07-15): tabelas `stack_sections`/
+      `stack_items`, admin `/admin/about` (`StackAdminPanel.tsx`) com edição
+      inline de seção/item (antes só add/delete), `/about` público em layout
+      lado a lado (bio | Ferramentas). Ícone = slug do Iconify `simple-icons`,
+      renderizado inline via `astro-icon` (SSR, sem CDN externo — tentativa
+      inicial com `@thesvg/icons` via `<img>` foi descartada por bug de
+      packaging + bloqueio de ad-blocker/ETP em produção, ver CONTEXT.md).
+      Busca em `/api/icons/search`. Fallback pra favicon do site (proxy
+      Google) quando ícone vazio + url preenchida.
 - [x] Anúncio de detecção de linguagens/stack de repositórios GitHub em
       `/projects` (2026-07-10): coluna `projects.languages` (jsonb),
       `syncProjectLanguages()` em `ingest.ts` (roda no cron diário via

@@ -1,9 +1,12 @@
 ---
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { DeleteButton } from '@/components/DeleteButton';
+import { Pencil } from 'lucide-react';
 import LanguageBadges from './LanguageBadges.astro';
 
 interface Props {
+  id?: string;
   title: string;
   description: string;
   date: Date;
@@ -13,10 +16,13 @@ interface Props {
   repo?: string;
   languages?: Record<string, number> | null;
   postCount?: number;
+  draft?: boolean;
+  isAdmin?: boolean;
   delay?: number;
 }
 
 const {
+  id,
   title,
   description,
   slug,
@@ -25,6 +31,8 @@ const {
   repo,
   languages,
   postCount = 0,
+  draft = false,
+  isAdmin = false,
   delay = 0,
 } = Astro.props;
 
@@ -45,7 +53,22 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
           {title}
         </span>
       </a>
-      <Badge variant={statusVariant[status]}>{status}</Badge>
+      <div class="flex shrink-0 items-center gap-1.5">
+        {draft && <Badge variant="outline">draft</Badge>}
+        <Badge variant={statusVariant[status]}>{status}</Badge>
+        {isAdmin && id && (
+          <div class="flex items-center gap-0.5">
+            <a
+              href={`/admin/projects/${id}`}
+              title="editar"
+              class="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+            >
+              <Pencil size={12} />
+            </a>
+            <DeleteButton id={id} title={title} resource="projects" label="" client:load />
+          </div>
+        )}
+      </div>
     </div>
 
     <p class="line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">{description}</p>

@@ -178,6 +178,23 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
 - **Sync de projeto nunca sobrescreve existente** — só cria registro novo
   pra repo sem match; evita que o cron apague edição manual do usuário no
   admin.
+- **Ícones de stack via Iconify `simple-icons`, renderizados inline (SSR),
+  nunca via CDN externo** (2026-07-15): tentativa inicial foi `@thesvg/icons`
+  com `<img src="https://thesvg.org/icons/{slug}/default.svg">` — além de um
+  bug de packaging na v3.2.6 (`dist/index.js` com `export type ... from`
+  inválido em JS puro, quebra em runtime), a abordagem de CDN externo se
+  mostrou frágil: usuários com ad-blocker/Enhanced Tracking Protection
+  bloqueiam esse domínio silenciosamente, quebrando os ícones pra boa parte
+  dos visitantes reais (confirmado pelo usuário no próprio browser). Trocado
+  pra `@iconify-json/simple-icons` (mesma família do `@iconify-json/lucide`/
+  `vscode-icons` que o projeto já usa via `astro-icon`): no `/about` público
+  renderiza inline via `<Icon name={iconName(slug)} />` (SSR, zero request de
+  terceiro pro visitante); no admin, `/api/icons/[slug]` e `/api/icons/search`
+  servem o SVG a partir de `src/lib/simple-icons.server.ts` (lê
+  `@iconify-json/simple-icons/icons.json` local, sem rede). Não reintroduzir
+  `<img>` apontando pra CDN de ícone externo nesse projeto — favicon fallback
+  (`faviconUrl`, proxy Google) é a única exceção aceita, por não ter como
+  inlinear favicon de site de terceiro.
 
 ## Estado atual
 
@@ -199,11 +216,26 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
   confirmado 2026-07-10)
 - Editor de post: embed de evento específico (commit/issue/PR do repo
   vinculado) + embed de imagem por URL
+- **About configurável** (2026-07-15): tabelas `stack_sections`/`stack_items`
+  (SQL já aplicado no Supabase), admin em `/admin/about`
+  (`StackAdminPanel.tsx`, com edição inline de título/label/url/ícone, não só
+  add/delete). `/about` público em layout lado a lado (bio | "Ferramentas").
+  Ícone = slug do Iconify `simple-icons`, renderizado inline via SSR
+  (`astro-icon`, `src/lib/icons.ts:iconName`), com fallback pro favicon do
+  site (proxy Google) quando vazio. Busca de ícone em `/api/icons/search`
+  (ver decisão abaixo pro porquê de não usar CDN externo pra ícone). Cor do
+  ícone customizável (`stack_items.icon_color`, nullable, hex) via
+  `ColorPicker.tsx` (`react-colorful`) — só aparece quando um ícone tá
+  selecionado.
+- **Sistema de Updates/novidades** (2026-07-15): tabela `updates`, banner na
+  home + sino de notificação no Header, disparado em `createUpdate()`
+  (`src/lib/updates.ts`) na criação de post/projeto não-draft e de stack_item.
 
 **Em andamento / não confirmado como completo:**
 - Tabelas do Supabase — sem SQL versionado no repo (`supabase-schema.sql`
   removido), tabelas novas (`post_reactions`, `post_comments`,
-  `projects.languages`) criadas manualmente via SQL passado durante a sessão
+  `projects.languages`, `stack_sections`, `stack_items`, `updates`) criadas
+  manualmente via SQL passado durante a sessão
 - `.env` de produção (deploy/Vercel/secrets do GH Actions) — não verificado
 - `site` em `astro.config.mjs` ainda é `'https://fake'`
 

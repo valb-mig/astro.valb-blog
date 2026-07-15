@@ -3,18 +3,19 @@ import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
 import LanguageBadges from '../../components/LanguageBadges.astro';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DeleteButton } from '@/components/DeleteButton';
+import { Pencil } from 'lucide-react';
 import { db } from '../../lib/db';
 import type { Project, Post } from '../../lib/db';
 import { renderMarkdown } from '../../lib/markdown';
 
 const { slug } = Astro.params;
+const isAdmin = Astro.locals.isAdmin;
 
-const { data: project, error } = await db
-  .from('projects')
-  .select('*')
-  .eq('slug', slug!)
-  .eq('draft', false)
-  .single();
+let projectQuery = db.from('projects').select('*').eq('slug', slug!);
+if (!isAdmin) projectQuery = projectQuery.eq('draft', false);
+const { data: project, error } = await projectQuery.single();
 
 if (error || !project) return Astro.redirect('/projects');
 
@@ -59,6 +60,21 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
     <div class="max-w-2xl">
 
       <header class="mb-10 border-b border-border pb-8">
+        {isAdmin && (
+          <div class="mb-4 flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
+            {p.draft && <Badge variant="outline">draft</Badge>}
+            <span class="text-muted-foreground">visão admin</span>
+            <div class="ml-auto flex items-center gap-1">
+              <Button variant="ghost" size="sm" asChild>
+                <a href={`/admin/projects/${p.id}`} class="flex items-center gap-1">
+                  <Pencil size={13} />
+                  editar
+                </a>
+              </Button>
+              <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/projects" client:load />
+            </div>
+          </div>
+        )}
         <h1 class="mb-3 text-3xl font-semibold">{p.title}</h1>
         <p class="mb-5 text-muted-foreground">{p.description}</p>
 

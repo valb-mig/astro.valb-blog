@@ -2,22 +2,40 @@
 import Base from '../../layouts/Base.astro';
 import ActivityItem from '../../components/ActivityItem.astro';
 import { Button } from '@/components/ui/button';
+import { SelectField } from '@/components/SelectField';
 import { db } from '../../lib/db';
 import type { SourceEvent } from '../../lib/db';
 
+const isAdmin = Astro.locals.isAdmin;
+
 const PAGE_SIZE = 40;
 const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1', 10) || 1);
+const repoFilter = Astro.url.searchParams.get('repo') ?? '';
 const from = (page - 1) * PAGE_SIZE;
 const to = from + PAGE_SIZE - 1;
 
-const { data, count } = await db
+let eventsQuery = db
   .from('source_events')
   .select('id,type,repo,url,title,occurred_at', { count: 'exact' })
   .order('occurred_at', { ascending: false })
   .range(from, to);
+if (isAdmin && repoFilter) eventsQuery = eventsQuery.eq('repo', repoFilter);
+
+const { data, count } = await eventsQuery;
 
 const events = (data ?? []) as Pick<SourceEvent, 'id' | 'type' | 'repo' | 'url' | 'title' | 'occurred_at'>[];
 const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+
+let repoOptions: { value: string; label: string }[] = [];
+if (isAdmin) {
+  const { data: projectRepos } = await db.from('projects').select('repo').not('repo', 'is', null).order('repo');
+  const repos = [...new Set((projectRepos ?? []).map((p) => p.repo as string))];
+  repoOptions = [{ value: '__all__', label: 'todos os repos' }, ...repos.map((repo) => ({ value: repo, label: repo }))];
+}
+
+function pageHref(p: number): string {
+  return `?page=${p}${repoFilter ? `&repo=${encodeURIComponent(repoFilter)}` : ''}`;
+}
 
 // Agrupamento por dia calendário UTC — mesma convenção do slug atividade-YYYY-MM-DD no ingest.
 const groups: { day: string; events: typeof events }[] = [];
@@ -44,9 +62,23 @@ function formatDay(day: string): string {
 
 <Base title="Atividade — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Atividade' }]}>
   <div class="mx-auto max-w-3xl px-6 py-16">
-    <div class="mb-8">
-      <h1 class="text-2xl font-semibold">Atividade</h1>
-      <p class="mt-1 text-sm text-muted-foreground">commits, issues, PRs e releases recentes.</p>
+    <div class="mb-8 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold">Atividade</h1>
+        <p class="mt-1 text-sm text-muted-foreground">commits, issues, PRs e releases recentes.</p>
+      </div>
+      {isAdmin && (
+        <form method="GET" class="shrink-0">
+          <input type="hidden" name="repo" id="repo-filter" value={repoFilter} />
+          <SelectField
+            client:load
+            hiddenInputId="repo-filter"
+            initialValue={repoFilter || '__all__'}
+            options={repoOptions}
+            className="w-48"
+          />
+        </form>
+      )}
     </div>
 
     {groups.length > 0 ? (
@@ -58,7 +90,7 @@ function formatDay(day: string): string {
             </h2>
             <div class="flex flex-col">
               {group.events.map((event, i) => (
-                <ActivityItem event={event as SourceEvent} delay={i * 20} />
+                <ActivityItem event={event as SourceEvent} isAdmin={isAdmin} delay={i * 20} />
               ))}
             </div>
           </section>
@@ -71,13 +103,28 @@ function formatDay(day: string): string {
     {totalPages > 1 && (
       <div class="mt-10 flex items-center justify-between border-t border-border pt-6">
         <Button variant="outline" size="sm" disabled={page <= 1} asChild={page > 1}>
-          {page > 1 ? <a href={`/atividade?page=${page - 1}`}>← anterior</a> : <span>← anterior</span>}
+          {page > 1 ? <a href={pageHref(page - 1)}>← anterior</a> : <span>← anterior</span>}
         </Button>
         <span class="text-xs text-muted-foreground">página {page} de {totalPages}</span>
         <Button variant="outline" size="sm" disabled={page >= totalPages} asChild={page < totalPages}>
-          {page < totalPages ? <a href={`/atividade?page=${page + 1}`}>próxima →</a> : <span>próxima →</span>}
+          {page < totalPages ? <a href={pageHref(page + 1)}>próxima →</a> : <span>próxima →</span>}
         </Button>
       </div>
     )}
   </div>
 </Base>
+
+{isAdmin && (
+  <script>
+    document.addEventListener('row-deleted', (e) => {
+      const { id } = (e as CustomEvent).detail;
+      document.querySelector(`[data-id="${id}"]`)?.remove();
+    });
+
+    document.getElementById('repo-filter')?.addEventListener('change', (e) => {
+      const el = e.target as HTMLInputElement;
+      if (el.value === '__all__') el.value = '';
+      el.form?.submit();
+    });
+  </script>
+)}

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, calcReadingTime } from '../../../lib/db';
 import { verifySession, SESSION_COOKIE } from '../../../lib/auth';
+import { createUpdate } from '../../../lib/updates';
 
 export const GET: APIRoute = async ({ cookies }) => {
   const isAdmin = !!verifySession(cookies.get(SESSION_COOKIE)?.value ?? '');
@@ -41,6 +42,15 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       .from('post_projects')
       .insert(projectIds.map((project_id: string) => ({ post_id: data.id, project_id })));
     if (linkError) return new Response(JSON.stringify({ error: linkError.message }), { status: 500 });
+  }
+
+  if (!data.draft) {
+    await createUpdate({
+      message: `Novo post: ${data.title}`,
+      source: 'auto',
+      kind: 'post',
+      ref_url: `/posts/${data.slug}`,
+    });
   }
 
   return new Response(JSON.stringify(data), {

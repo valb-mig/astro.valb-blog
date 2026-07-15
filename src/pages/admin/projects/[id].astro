@@ -1,5 +1,5 @@
 ---
-import Admin from '../../../layouts/Admin.astro';
+import Base from '../../../layouts/Base.astro';
 import MarkdownEditor from '../../../components/MarkdownEditor.astro';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import type { Project } from '../../../lib/db';
 const { id } = Astro.params;
 const { data: project, error } = await db.from('projects').select('*').eq('id', id!).single();
 
-if (error || !project) return Astro.redirect('/admin/projects');
+if (error || !project) return Astro.redirect('/projects');
 
 const p = project as Project;
 const dateStr = new Date(p.date).toISOString().split('T')[0];
@@ -26,7 +26,11 @@ const statusOptions = [
 ];
 ---
 
-<Admin title={`Editar: ${p.title}`}>
+<Base
+  title={`Editar: ${p.title}`}
+  breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Projects', href: '/projects' }, { label: p.slug, href: `/projects/${p.slug}` }, { label: 'editar' }]}
+>
+  <div class="mx-auto max-w-3xl px-6 py-16">
   <h1 class="mb-8 text-xl font-semibold">Editar projeto</h1>
 
   <form id="proj-form" class="flex flex-col gap-6">
@@ -82,14 +86,14 @@ const statusOptions = [
 
     <div class="flex flex-wrap items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar alterações</Button>
-      <a href={`/projects/${p.slug}`} target="_blank" class="text-sm text-muted-foreground hover:text-foreground">ver projeto ↗</a>
-      <a href="/admin/projects" class="text-sm text-muted-foreground hover:text-foreground">voltar</a>
+      <a href={`/projects/${p.slug}`} class="text-sm text-muted-foreground hover:text-foreground">voltar ao projeto</a>
       <div class="ml-auto">
-        <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/admin/projects" client:load />
+        <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/projects" client:load />
       </div>
     </div>
   </form>
-</Admin>
+  </div>
+</Base>
 
 <script>
   import { toast } from 'sonner';
