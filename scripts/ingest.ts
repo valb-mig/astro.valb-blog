@@ -208,9 +208,9 @@ async function fetchCommitsFromGitLog(fullName: string, dir: string, date: strin
 
 // Troca a Events API (retém ~90 dias, só commit sobrevive dessa troca — issue/PR/release
 // não são mais capturados) por leitura direta de `git log` num mirror bare local.
-async function fetchRecentEvents(publicRepoNames: Set<string>, date: string): Promise<NewEvent[]> {
+async function fetchRecentEvents(repoNames: Set<string>, date: string): Promise<NewEvent[]> {
   const mapped: NewEvent[][] = [];
-  for (const fullName of publicRepoNames) {
+  for (const fullName of repoNames) {
     try {
       const dir = await syncRepoMirror(fullName);
       mapped.push(await fetchCommitsFromGitLog(fullName, dir, date));
@@ -671,9 +671,11 @@ async function rebuildPostContent(
   postId: string,
   date: string,
   repoCreatedAt: Map<string, string | null>,
+  nonMentionableRepos: Set<string>,
 ): Promise<{ totalEvents: number; fallbackUsed: boolean }> {
   const allEvents = await fetchAllEventsForPost(postId);
-  const groups = groupByRepo(dedupeMergeCommits(allEvents));
+  const mentionableEvents = allEvents.filter((e) => !nonMentionableRepos.has(e.repo));
+  const groups = groupByRepo(dedupeMergeCommits(mentionableEvents));
   const llm = await getLlmProvider();
 
   const [narrative, repoNarratives] = await Promise.all([
@@ -690,7 +692,7 @@ async function rebuildPostContent(
 
   await linkPostToProjects(postId, Object.keys(groups));
 
-  return { totalEvents: allEvents.length, fallbackUsed: llm.usedFallback ?? false };
+  return { totalEvents: mentionableEvents.length, fallbackUsed: llm.usedFallback ?? false };
 }
 
 // `ingest_runs` alimenta o dashboard do admin — grava início/fim de toda run,
@@ -738,24 +740,56 @@ async function main(): Promise<void> {
     const publicRepoNames = new Set(ownedRepos.filter((r) => !r.private).map((r) => r.full_name));
     const repoCreatedAt = new Map(ownedRepos.map((r) => [r.full_name, r.created_at]));
 
+    // Repos privados a incluir no ingest e repos a omitir do post (por projeto)
+    const { data: projectSettings } = await db
+      .from('projects')
+      .select('repo, ingest_private, mention_allowed')
+      .not('repo', 'is', null);
+
+    const privateIngestRepos = new Set(
+      (projectSettings ?? [])
+        .filter((p) => p.ingest_private && p.repo && !publicRepoNames.has(p.repo as string))
+        .map((p) => p.repo as string),
+    );
+
+    const nonMentionableRepos = new Set(
+      (projectSettings ?? [])
+        .filter((p) => p.mention_allowed === false && p.repo)
+        .map((p) => p.repo as string),
+    );
+
+    const allIngestRepos = new Set([...publicRepoNames, ...privateIngestRepos]);
+
+    if (privateIngestRepos.size) {
+      console.log(`Repos privados no ingest: ${[...privateIngestRepos].join(', ')}`);
+    }
+    if (nonMentionableRepos.size) {
+      console.log(`Repos omitidos do post: ${[...nonMentionableRepos].join(', ')}`);
+    }
+
     await syncProjectsFromGithub(ownedRepos);
     await syncProjectLanguages();
 
-    const newEvents = await fetchRecentEvents(publicRepoNames, date);
-    const trulyNewEvents = await filterTrulyNewEvents(newEvents);
+    const newEvents = await fetchRecentEvents(allIngestRepos, date);
+    const trulyNewAll = await filterTrulyNewEvents(newEvents);
+    const mentionableNewEvents = newEvents.filter((e) => !nonMentionableRepos.has(e.repo));
+    const trulyNewMentionable = trulyNewAll.filter((e) => !nonMentionableRepos.has(e.repo));
     let insertedCount = 0;
 
     if (newEvents.length) {
-      const { data: inserted, error } = await db
+      // Upsert de todos os eventos (incluindo privados) para tracking
+      const { data: upserted, error } = await db
         .from('source_events')
         .upsert(newEvents, { onConflict: 'source,type,external_id,repo', ignoreDuplicates: true })
         .select('*');
       if (error) throw error;
-      insertedCount = trulyNewEvents.length;
+      insertedCount = trulyNewAll.length;
 
-      if (inserted?.length) {
+      // Linka ao post apenas eventos mencionáveis
+      const mentionableUpserted = (upserted ?? []).filter((e) => !nonMentionableRepos.has(e.repo));
+      if (mentionableUpserted.length) {
         const postId = await getOrCreatePostId(slug, date);
-        const links = inserted.map((e) => ({ post_id: postId, event_id: e.id }));
+        const links = mentionableUpserted.map((e) => ({ post_id: postId, event_id: e.id }));
         const { error: linkError } = await db
           .from('post_events')
           .upsert(links, { onConflict: 'post_id,event_id', ignoreDuplicates: true });
@@ -763,22 +797,26 @@ async function main(): Promise<void> {
       }
     }
 
-    if (!newEvents.length) {
+    // Sem eventos mencionáveis hoje → usa Wakatime (mesmo que haja commits privados)
+    if (!mentionableNewEvents.length) {
+      if (newEvents.length) {
+        console.log(`${newEvents.length} commit(s) encontrado(s) apenas em repos omitidos do post — usando Wakatime como fallback.`);
+      }
       const { llmFallbackUsed } = await tryBuildWakatimeFallbackPost(date, slug, force);
       await finishIngestRun(runId, {
         status: 'success',
-        events_created: 0,
+        events_created: insertedCount,
         llm_fallback_used: llmFallbackUsed,
         error_message: null,
       });
       return;
     }
 
-    if (!insertedCount && !force) {
-      console.log('Eventos encontrados já haviam sido processados (dedupe).');
+    if (!trulyNewMentionable.length && !force) {
+      console.log('Eventos mencionáveis encontrados já haviam sido processados (dedupe).');
       await finishIngestRun(runId, {
         status: 'success',
-        events_created: 0,
+        events_created: insertedCount,
         llm_fallback_used: false,
         error_message: null,
       });
@@ -797,9 +835,9 @@ async function main(): Promise<void> {
       return;
     }
 
-    const { totalEvents, fallbackUsed } = await rebuildPostContent(existingPost.id, date, repoCreatedAt);
+    const { totalEvents, fallbackUsed } = await rebuildPostContent(existingPost.id, date, repoCreatedAt, nonMentionableRepos);
     console.log(
-      `Post rascunho "${slug}" atualizado com ${insertedCount} evento(s) novo(s), ${totalEvents} no total do dia.`,
+      `Post rascunho "${slug}" atualizado com ${trulyNewMentionable.length} evento(s) novo(s), ${totalEvents} mencionável(is) no total do dia.`,
     );
     await finishIngestRun(runId, {
       status: 'success',
