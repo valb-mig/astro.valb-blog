@@ -27,6 +27,8 @@ export type Project = {
   draft: boolean;
   parent_project_id: string | null;
   languages: Record<string, number> | null;
+  ingest_private: boolean;
+  mention_allowed: boolean;
   created_at: string;
   updated_at: string;
 };

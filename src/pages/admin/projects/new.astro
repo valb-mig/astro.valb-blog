@@ -51,6 +51,19 @@ const statusOptions = [
       </div>
     </div>
 
+    <div class="flex flex-wrap gap-6">
+      <div class="flex items-center gap-2.5">
+        <input type="hidden" id="f-ingest-private" value="false" />
+        <SwitchField client:load hiddenInputId="f-ingest-private" initialChecked={false} />
+        <Label htmlFor="f-ingest-private">incluir no ingest (repo privado)</Label>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <input type="hidden" id="f-mention-allowed" value="true" />
+        <SwitchField client:load hiddenInputId="f-mention-allowed" initialChecked={true} />
+        <Label htmlFor="f-mention-allowed">mencionar no post de atividade</Label>
+      </div>
+    </div>
+
     <div class="flex flex-col gap-1.5">
       <Label htmlFor="f-tags">tags (vírgula)</Label>
       <Input id="f-tags" type="text" placeholder="astro, typescript" />
@@ -113,6 +126,8 @@ const statusOptions = [
       status: (document.getElementById('f-status') as HTMLInputElement).value,
       tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
       repo: repoVal || null,
+      ingest_private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
+      mention_allowed: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
