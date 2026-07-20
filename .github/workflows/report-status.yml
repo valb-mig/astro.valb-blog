@@ -41,8 +41,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: POST status
+        env:
+          PAYLOAD: ${{ inputs.payload }}
+          STATUS_TOKEN: ${{ secrets.status_token }}
         run: |
           curl -sf -X POST "${{ inputs.site_url }}/api/projects/${{ inputs.project_id }}/status" \
-            -H "Authorization: Bearer ${{ secrets.status_token }}" \
+            -H "Authorization: Bearer $STATUS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "${{ inputs.payload }}"
+            -d "$PAYLOAD"
