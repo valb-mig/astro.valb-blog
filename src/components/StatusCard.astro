@@ -58,6 +58,33 @@ const releaseUrl = repo && latestRelease ? `https://github.com/${repo}/releases/
 const deployVersion = deployStatus?.version as string | undefined;
 const uptimeUp = lastStatusCode != null && lastStatusCode >= 200 && lastStatusCode < 300;
 
+// Vitals: um sinal só resumindo a saúde do projeto pra escaneio visual rápido.
+// Prioridade: uptime (é o sinal mais direto de "tá no ar") > CI > só recebeu
+// deploy_status (sem uptime/CI configurado, mas reportando vida) > sem dado.
+type HealthLevel = 'ok' | 'warn' | 'down' | 'unknown';
+
+function computeHealth(): { level: HealthLevel; label: string } {
+  if (uptimeUrl) {
+    if (lastStatusCode == null) return { level: 'unknown', label: 'uptime: sem resposta' };
+    return uptimeUp ? { level: 'ok', label: 'online' } : { level: 'down', label: `offline (${lastStatusCode})` };
+  }
+  if (ciStatus) {
+    if (ciStatus === 'success') return { level: 'ok', label: 'build ok' };
+    if (ciStatus === 'failure' || ciStatus === 'timed_out') return { level: 'down', label: 'build falhou' };
+    return { level: 'warn', label: `ci: ${ciStatus}` };
+  }
+  if (deployStatus) return { level: 'ok', label: 'reportando deploy' };
+  return { level: 'unknown', label: 'sem dado de status' };
+}
+
+const health = computeHealth();
+const HEALTH_DOT: Record<HealthLevel, string> = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-amber-500',
+  down: 'bg-red-500',
+  unknown: 'bg-muted-foreground/40',
+};
+
 function relativeDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' });
 }
@@ -66,7 +93,13 @@ function relativeDate(iso: string): string {
 <Card className="fade-in h-full" style={{ transitionDelay: `${delay}ms` }}>
   <CardContent className="flex h-full flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
-      <a href={`/projects/${slug}`} class="group min-w-0">
+      <a href={`/projects/${slug}`} class="group flex min-w-0 items-center gap-2">
+        <span class="relative flex size-2.5 shrink-0" title={health.label}>
+          {health.level === 'ok' && (
+            <span class={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${HEALTH_DOT[health.level]}`} />
+          )}
+          <span class={`relative inline-flex size-2.5 rounded-full ${HEALTH_DOT[health.level]}`} />
+        </span>
         <span class="truncate text-base font-semibold transition-colors group-hover:text-foreground/80">
           {title}
         </span>
