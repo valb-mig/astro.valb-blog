@@ -9,7 +9,7 @@ const isAdmin = Astro.locals.isAdmin;
 let query = db
   .from('projects')
   .select(
-    'id,slug,title,languages,draft,repo,ci_status,latest_release,uptime_url,last_status_code,last_uptime_check_at,deploy_status,deploy_status_at',
+    'id,slug,title,languages,draft,repo,ci_status,latest_release,latest_release_at,uptime_url,last_status_code,last_uptime_check_at,deploy_status,deploy_status_at',
   )
   .order('title', { ascending: true });
 if (!isAdmin) query = query.eq('draft', false);
@@ -25,6 +25,7 @@ type StatusProject = Pick<
   | 'repo'
   | 'ci_status'
   | 'latest_release'
+  | 'latest_release_at'
   | 'uptime_url'
   | 'last_status_code'
   | 'last_uptime_check_at'
@@ -71,6 +72,7 @@ if (repos.length) {
             draft={p.draft}
             ciStatus={p.ci_status}
             latestRelease={p.latest_release}
+            latestReleaseAt={p.latest_release_at}
             uptimeUrl={p.uptime_url}
             lastStatusCode={p.last_status_code}
             lastUptimeCheckAt={p.last_uptime_check_at}

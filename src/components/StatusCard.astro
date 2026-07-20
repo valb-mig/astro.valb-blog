@@ -1,6 +1,7 @@
 ---
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ExternalLink, Tag as TagIcon } from 'lucide-react';
 import LanguageBadges from './LanguageBadges.astro';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   draft?: boolean;
   ciStatus?: string | null;
   latestRelease?: string | null;
+  latestReleaseAt?: string | null;
   uptimeUrl?: string | null;
   lastStatusCode?: number | null;
   lastUptimeCheckAt?: string | null;
@@ -29,6 +31,7 @@ const {
   draft = false,
   ciStatus,
   latestRelease,
+  latestReleaseAt,
   uptimeUrl,
   lastStatusCode,
   lastUptimeCheckAt,
@@ -48,7 +51,11 @@ const CI_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outl
   queued: 'secondary',
 };
 
-const version = (deployStatus?.version as string | undefined) ?? latestRelease ?? null;
+// deploy_status.url tem prioridade (link real reportado pelo deploy) — uptime_url
+// é fallback, mesmo sendo um endpoint de health-check e não a home do projeto.
+const webLink = (deployStatus?.url as string | undefined) ?? uptimeUrl ?? null;
+const releaseUrl = repo && latestRelease ? `https://github.com/${repo}/releases/tag/${latestRelease}` : null;
+const deployVersion = deployStatus?.version as string | undefined;
 const uptimeUp = lastStatusCode != null && lastStatusCode >= 200 && lastStatusCode < 300;
 
 function relativeDate(iso: string): string {
@@ -64,7 +71,21 @@ function relativeDate(iso: string): string {
           {title}
         </span>
       </a>
-      {draft && <Badge variant="outline">draft</Badge>}
+      <div class="flex shrink-0 items-center gap-1.5">
+        {draft && <Badge variant="outline">draft</Badge>}
+        {webLink && (
+          <a
+            href={webLink}
+            target="_blank"
+            rel="noopener"
+            title="abrir projeto"
+            class="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ExternalLink size={12} />
+            site
+          </a>
+        )}
+      </div>
     </div>
 
     <LanguageBadges languages={languages} />
@@ -76,7 +97,17 @@ function relativeDate(iso: string): string {
           {lastStatusCode == null ? 'uptime: sem resposta' : uptimeUp ? 'uptime: ok' : `uptime: ${lastStatusCode}`}
         </Badge>
       )}
-      {version && <Badge variant="outline">{version}</Badge>}
+      {releaseUrl ? (
+        <a href={releaseUrl} target="_blank" rel="noopener">
+          <Badge variant="outline" className="flex items-center gap-1">
+            <TagIcon size={11} />
+            {latestRelease}
+            {latestReleaseAt && <span class="opacity-60">· {relativeDate(latestReleaseAt)}</span>}
+          </Badge>
+        </a>
+      ) : (
+        deployVersion && <Badge variant="outline">{deployVersion}</Badge>
+      )}
     </div>
 
     <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">

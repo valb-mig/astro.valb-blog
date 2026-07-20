@@ -9,7 +9,7 @@
 #       with:
 #         site_url: https://SEUDOMINIO
 #         project_id: <uuid da linha em projects>
-#         payload: '{"version":"${{ github.sha }}","env":"production"}'
+#         payload: '{"version":"${{ github.sha }}","env":"production","url":"https://meuprojeto.com"}'
 #       secrets:
 #         status_token: ${{ secrets.STATUS_TOKEN }}
 #
