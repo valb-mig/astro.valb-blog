@@ -9,7 +9,6 @@ const navItems = [
   { label: 'Posts', href: '/posts' },
   { label: 'Projects', href: '/projects' },
   { label: 'Atividade', href: '/atividade' },
-  { label: 'Status', href: '/status' },
   { label: 'About', href: '/about' },
 ];
 
@@ -43,7 +42,7 @@ const isAdmin = Astro.locals.isAdmin;
       id="header-search-btn"
       variant="outline"
       size="sm"
-      className="justify-start text-muted-foreground sm:w-56 md:w-72"
+      className="hidden justify-start text-muted-foreground sm:inline-flex sm:w-56 md:w-72"
     >
       <Search />
       <span class="hidden flex-1 truncate text-left sm:inline">Buscar posts, projetos...</span>
@@ -92,10 +91,111 @@ const isAdmin = Astro.locals.isAdmin;
   </div>
 </header>
 
+<button
+  id="mobile-search-fab"
+  type="button"
+  title="Buscar"
+  aria-label="Buscar posts, projetos..."
+  style="bottom: calc(6rem + env(safe-area-inset-bottom)); right: calc(1.25rem + env(safe-area-inset-right)); touch-action: none;"
+  class="fixed z-[110] flex size-14 items-center justify-center rounded-full border border-border bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 sm:hidden"
+>
+  <span
+    id="mobile-search-fab-label"
+    class="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 translate-x-2 whitespace-nowrap rounded-full border border-border bg-popover px-3 py-1.5 text-xs text-foreground opacity-0 shadow-lg transition-all duration-[400ms] ease-in-out"
+  >
+    Command Palette
+  </span>
+  <Search size={22} />
+</button>
+
 <script>
-  document.getElementById('header-search-btn')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('open-command-menu'));
-  });
+  const openPalette = () => document.dispatchEvent(new CustomEvent('open-command-menu'));
+
+  document.getElementById('header-search-btn')?.addEventListener('click', openPalette);
+
+  const fab = document.getElementById('mobile-search-fab');
+  if (fab) {
+    const label = document.getElementById('mobile-search-fab-label');
+    if (label) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          label.classList.remove('opacity-0', 'translate-x-2');
+          label.classList.add('opacity-100', 'translate-x-0');
+        });
+      });
+      setTimeout(() => {
+        label.classList.remove('opacity-100', 'translate-x-0');
+        label.classList.add('opacity-0', 'translate-x-2');
+      }, 1100);
+    }
+
+    const STORAGE_KEY = 'fab-search-pos';
+    const FAB_SIZE = 56;
+    const MARGIN = 12;
+
+    const clamp = (x: number, y: number) => {
+      const maxX = Math.max(window.innerWidth - FAB_SIZE - MARGIN, MARGIN);
+      const maxY = Math.max(window.innerHeight - FAB_SIZE - MARGIN, MARGIN);
+      return { x: Math.min(Math.max(x, MARGIN), maxX), y: Math.min(Math.max(y, MARGIN), maxY) };
+    };
+
+    const applyPosition = (x: number, y: number) => {
+      fab.style.left = `${x}px`;
+      fab.style.top = `${y}px`;
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+    };
+
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const { x, y } = JSON.parse(saved);
+        const pos = clamp(x, y);
+        applyPosition(pos.x, pos.y);
+      }
+    } catch {}
+
+    let dragging = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let originX = 0;
+    let originY = 0;
+
+    fab.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = fab.getBoundingClientRect();
+      originX = rect.left;
+      originY = rect.top;
+      fab.setPointerCapture(e.pointerId);
+    });
+
+    fab.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 6) moved = true;
+      if (!moved) return;
+      const pos = clamp(originX + dx, originY + dy);
+      applyPosition(pos.x, pos.y);
+    });
+
+    fab.addEventListener('pointerup', () => {
+      if (!dragging) return;
+      dragging = false;
+      if (moved) {
+        const rect = fab.getBoundingClientRect();
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: rect.left, y: rect.top }));
+        } catch {}
+      } else {
+        openPalette();
+      }
+    });
+  }
 
   const kbd = document.getElementById('header-search-kbd');
   if (kbd && /Mac|iPhone|iPad/.test(navigator.userAgent)) {
