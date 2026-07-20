@@ -136,6 +136,25 @@ real do código.
 
 ## Ideias / backlog (sem compromisso)
 
+- [ ] **Página `/status` dos projetos** — painel mostrando estado de todos os
+      projetos (web e backends não hospedados). Debatido em 2026-07-19.
+      Abordagem preferida: começar expandindo o ingest (zero atrito, sem setup
+      por projeto) e depois complementar com webhook/workflow se precisar de
+      dados que o GitHub não expõe.
+      - **Fase 1 (ingest):** adicionar colunas `ci_status`, `last_commit_at`,
+        `latest_release` em `projects`; o cron já acessa a GitHub API por
+        repo — buscar `actions.listWorkflowRunsForRepo` + `repos.listReleases`
+        no mesmo loop. Para projetos com `uptime_url`: `fetch` com timeout e
+        salvar `last_status_code`.
+      - **Fase 2 (workflow compartilhado, opcional):** workflow reutilizável
+        `workflow_call` neste repo ou num `.github` da org; cada projeto chama
+        em push/deploy e POST para `/api/projects/status` com payload livre
+        (versão, env, build hash, etc.). Útil para dados que a API do GitHub
+        não expõe (serviço rodando em staging, métricas internas). Tem atrito:
+        cada projeto novo precisa adicionar o yaml.
+      - Página pública mostra: nome, linguagens, atividade recente, CI status,
+        versão/release, uptime (se aplicável). Admin vê mais detalhes.
+
 - [x] Cron do ingest ajustado pra `55 23 * * *` (fim do dia UTC) e janela de
       busca trocada de rolling 24h pra dia calendário UTC (2026-07-09) —
       consistente com `todayStart`/slug `atividade-YYYY-MM-DD` que já usavam
