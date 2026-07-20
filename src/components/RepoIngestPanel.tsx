@@ -78,8 +78,10 @@ export function RepoIngestPanel() {
     return <p className="text-sm text-muted-foreground">nenhum projeto com repo GitHub.</p>;
   }
 
+  const COL = { mention: 'w-[68px]', private: 'w-[52px]' } as const;
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 min-w-0">
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
@@ -93,35 +95,43 @@ export function RepoIngestPanel() {
       {grouped.length === 0 ? (
         <p className="text-sm text-muted-foreground">nenhum resultado.</p>
       ) : (
-        <div className="flex flex-col gap-3 max-h-72 overflow-y-auto pr-1">
+        <div className="relative flex flex-col gap-2 max-h-72 overflow-y-auto overflow-x-hidden">
+          <div className="sticky top-0 z-10 flex items-center px-3 py-1 bg-background border-b border-border">
+            <span className="flex-1 min-w-0" />
+            <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+              <span className={`${COL.mention} text-center`}>mencionar</span>
+              <span className={`${COL.private} text-center`}>privado</span>
+            </div>
+          </div>
+
           {grouped.map(([org, items]) => (
             <div key={org} className="flex flex-col gap-0.5">
               <p className="text-xs font-medium text-muted-foreground px-1">{org}</p>
-              <div className="rounded-lg border border-border divide-y divide-border">
+              <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
                 {items.map((p) => {
                   const repoName = p.repo.split('/')[1] ?? p.repo;
                   return (
                     <div key={p.id} className="flex items-center gap-3 px-3 py-2">
-                      <span className="flex-1 text-sm font-mono truncate" title={p.repo}>
+                      <span className="flex-1 min-w-0 text-sm font-mono truncate" title={p.repo}>
                         {repoName}
                       </span>
-                      <div className="flex items-center gap-4 shrink-0">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className={`${COL.mention} flex justify-center`}>
                           <Switch
                             checked={p.mention_allowed}
                             onCheckedChange={(v) => toggle(p, 'mention_allowed', v)}
                             disabled={updating.has(`${p.id}-mention_allowed`)}
+                            aria-label="mencionar no post"
                           />
-                          <span className="text-xs text-muted-foreground select-none">mencionar</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                        </div>
+                        <div className={`${COL.private} flex justify-center`}>
                           <Switch
                             checked={p.ingest_private}
                             onCheckedChange={(v) => toggle(p, 'ingest_private', v)}
                             disabled={updating.has(`${p.id}-ingest_private`)}
+                            aria-label="incluir privado"
                           />
-                          <span className="text-xs text-muted-foreground select-none">privado</span>
-                        </label>
+                        </div>
                       </div>
                     </div>
                   );
