@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { RepoIngestPanel } from '@/components/RepoIngestPanel';
 
 type Settings = {
   llm_provider?: string;
@@ -118,6 +120,16 @@ export function SettingsAdminPanel() {
       <Button onClick={save} disabled={saving} className="w-fit">
         {saving ? 'salvando...' : 'salvar'}
       </Button>
+
+      <Separator />
+
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium">repos no ingest</p>
+        <p className="text-xs text-muted-foreground">
+          <strong>mencionar</strong>: commits rastreados e incluídos no post. <strong>privado</strong>: espelha repos privados no ingest.
+        </p>
+        <RepoIngestPanel />
+      </div>
     </div>
   );
 }
