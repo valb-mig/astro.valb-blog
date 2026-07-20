@@ -96,7 +96,7 @@ export function RepoIngestPanel() {
         <p className="text-sm text-muted-foreground">nenhum resultado.</p>
       ) : (
         <div className="relative flex flex-col gap-2 max-h-72 overflow-y-auto overflow-x-hidden">
-          <div className="sticky top-0 z-10 flex items-center px-3 py-1 bg-background border-b border-border">
+          <div className="sticky top-0 z-10 flex items-center px-3 py-1 bg-card border-b border-border">
             <span className="flex-1 min-w-0" />
             <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
               <span className={`${COL.mention} text-center`}>mencionar</span>
