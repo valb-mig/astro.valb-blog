@@ -29,7 +29,7 @@ function ItemIcon({ item }: { item: Pick<StackItem, 'icon' | 'icon_color' | 'url
   if (item.icon) {
     return <InlineIcon slug={item.icon} color={item.icon_color} className="size-4 shrink-0 [&_svg]:size-full" />;
   }
-  if (item.url) return <img src={faviconUrl(item.url)} alt="" className="size-4 shrink-0" />;
+  if (item.url) return <img src={faviconUrl(item.url)} alt="" width={16} height={16} loading="lazy" decoding="async" className="size-4 shrink-0" />;
   return null;
 }
 
