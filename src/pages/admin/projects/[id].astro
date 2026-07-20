@@ -68,6 +68,19 @@ const statusOptions = [
       </div>
     </div>
 
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-uptime-url">uptime url (health-check, opcional)</Label>
+      <Input id="f-uptime-url" type="url" value={p.uptime_url ?? ''} placeholder="https://meuservico.com/health" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-status-token">token de status (POST /api/projects/{p.id}/status)</Label>
+      <div class="flex gap-2">
+        <Input id="f-status-token" type="text" readOnly value={p.status_token ?? ''} placeholder="ainda não gerado" className="font-mono text-xs" />
+        <Button type="button" id="gen-token-btn" variant="outline">gerar novo</Button>
+      </div>
+    </div>
+
     <div class="flex flex-wrap gap-6">
       <div class="flex items-center gap-2.5">
         <input type="hidden" id="f-ingest-private" value={String(p.ingest_private ?? false)} />
@@ -122,6 +135,7 @@ const statusOptions = [
 
     const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
     const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
+    const uptimeUrlVal = (document.getElementById('f-uptime-url') as HTMLInputElement).value.trim();
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -131,6 +145,7 @@ const statusOptions = [
       status: (document.getElementById('f-status') as HTMLInputElement).value,
       tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
       repo: repoVal || null,
+      uptime_url: uptimeUrlVal || null,
       ingest_private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
       mention_allowed: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
@@ -152,6 +167,24 @@ const statusOptions = [
       toast.error(error ?? 'Erro ao salvar');
       saveBtn.disabled = false;
       saveBtn.textContent = 'salvar alterações';
+    }
+  });
+
+  document.getElementById('gen-token-btn')?.addEventListener('click', async () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+
+    const res = await fetch(`/api/projects/${projId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status_token: token }),
+    });
+
+    if (res.ok) {
+      (document.getElementById('f-status-token') as HTMLInputElement).value = token;
+      toast.success('Novo token gerado — atualize o secret no repo que reporta status.');
+    } else {
+      toast.error('Erro ao gerar token');
     }
   });
 </script>

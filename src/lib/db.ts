@@ -29,6 +29,16 @@ export type Project = {
   languages: Record<string, number> | null;
   ingest_private: boolean;
   mention_allowed: boolean;
+  ci_status: string | null;
+  ci_checked_at: string | null;
+  latest_release: string | null;
+  latest_release_at: string | null;
+  uptime_url: string | null;
+  last_status_code: number | null;
+  last_uptime_check_at: string | null;
+  status_token: string | null;
+  deploy_status: Record<string, unknown> | null;
+  deploy_status_at: string | null;
   created_at: string;
   updated_at: string;
 };

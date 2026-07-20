@@ -1,0 +1,48 @@
+# Workflow reutilizável (Fase 2 do /status): outros repos chamam isso no
+# próprio deploy/push pra reportar versão/build/env — dado que a API do
+# GitHub não expõe (serviço rodando em staging, hash de build, etc). Exemplo
+# de uso num repo consumidor:
+#
+#   jobs:
+#     report-status:
+#       uses: valb-mig/astro.valb-blog/.github/workflows/report-status.yml@main
+#       with:
+#         site_url: https://SEUDOMINIO
+#         project_id: <uuid da linha em projects>
+#         payload: '{"version":"${{ github.sha }}","env":"production"}'
+#       secrets:
+#         status_token: ${{ secrets.STATUS_TOKEN }}
+#
+# status_token vem do botão "gerar novo" no form de edição do projeto
+# (/admin/projects/[id]) — guardar como secret no repo consumidor.
+name: Report Status
+
+on:
+  workflow_call:
+    inputs:
+      site_url:
+        description: 'URL base do blog (ex: https://meusite.com), sem barra final'
+        required: true
+        type: string
+      project_id:
+        description: 'id (uuid) da linha em projects'
+        required: true
+        type: string
+      payload:
+        description: 'JSON livre (versão, env, build hash etc) — vira projects.deploy_status'
+        required: true
+        type: string
+    secrets:
+      status_token:
+        required: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST status
+        run: |
+          curl -sf -X POST "${{ inputs.site_url }}/api/projects/${{ inputs.project_id }}/status" \
+            -H "Authorization: Bearer ${{ secrets.status_token }}" \
+            -H "Content-Type: application/json" \
+            -d "${{ inputs.payload }}"

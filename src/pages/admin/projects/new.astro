@@ -51,6 +51,11 @@ const statusOptions = [
       </div>
     </div>
 
+    <div class="flex flex-col gap-1.5">
+      <Label htmlFor="f-uptime-url">uptime url (health-check, opcional)</Label>
+      <Input id="f-uptime-url" type="url" placeholder="https://meuservico.com/health" />
+    </div>
+
     <div class="flex flex-wrap gap-6">
       <div class="flex items-center gap-2.5">
         <input type="hidden" id="f-ingest-private" value="false" />
@@ -117,6 +122,7 @@ const statusOptions = [
 
     const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
     const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
+    const uptimeUrlVal = (document.getElementById('f-uptime-url') as HTMLInputElement).value.trim();
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -126,6 +132,7 @@ const statusOptions = [
       status: (document.getElementById('f-status') as HTMLInputElement).value,
       tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
       repo: repoVal || null,
+      uptime_url: uptimeUrlVal || null,
       ingest_private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
       mention_allowed: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',

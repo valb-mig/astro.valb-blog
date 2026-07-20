@@ -1,0 +1,107 @@
+---
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import LanguageBadges from './LanguageBadges.astro';
+
+interface Props {
+  title: string;
+  slug: string;
+  repo?: string | null;
+  languages?: Record<string, number> | null;
+  draft?: boolean;
+  ciStatus?: string | null;
+  latestRelease?: string | null;
+  uptimeUrl?: string | null;
+  lastStatusCode?: number | null;
+  lastUptimeCheckAt?: string | null;
+  deployStatus?: Record<string, unknown> | null;
+  deployStatusAt?: string | null;
+  lastCommitAt?: string | null;
+  isAdmin?: boolean;
+  delay?: number;
+}
+
+const {
+  title,
+  slug,
+  repo,
+  languages,
+  draft = false,
+  ciStatus,
+  latestRelease,
+  uptimeUrl,
+  lastStatusCode,
+  lastUptimeCheckAt,
+  deployStatus,
+  deployStatusAt,
+  lastCommitAt,
+  isAdmin = false,
+  delay = 0,
+} = Astro.props;
+
+const CI_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  success: 'default',
+  failure: 'destructive',
+  timed_out: 'destructive',
+  cancelled: 'secondary',
+  in_progress: 'secondary',
+  queued: 'secondary',
+};
+
+const version = (deployStatus?.version as string | undefined) ?? latestRelease ?? null;
+const uptimeUp = lastStatusCode != null && lastStatusCode >= 200 && lastStatusCode < 300;
+
+function relativeDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' });
+}
+---
+
+<Card className="fade-in h-full" style={{ transitionDelay: `${delay}ms` }}>
+  <CardContent className="flex h-full flex-col gap-3">
+    <div class="flex items-center justify-between gap-2">
+      <a href={`/projects/${slug}`} class="group min-w-0">
+        <span class="truncate text-base font-semibold transition-colors group-hover:text-foreground/80">
+          {title}
+        </span>
+      </a>
+      {draft && <Badge variant="outline">draft</Badge>}
+    </div>
+
+    <LanguageBadges languages={languages} />
+
+    <div class="flex flex-wrap items-center gap-2">
+      {ciStatus && <Badge variant={CI_VARIANT[ciStatus] ?? 'secondary'}>ci: {ciStatus}</Badge>}
+      {uptimeUrl && (
+        <Badge variant={lastStatusCode == null ? 'outline' : uptimeUp ? 'default' : 'destructive'}>
+          {lastStatusCode == null ? 'uptime: sem resposta' : uptimeUp ? 'uptime: ok' : `uptime: ${lastStatusCode}`}
+        </Badge>
+      )}
+      {version && <Badge variant="outline">{version}</Badge>}
+    </div>
+
+    <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+      <div class="flex items-center gap-3">
+        {lastCommitAt && (
+          <a href={`/atividade?repo=${encodeURIComponent(repo ?? '')}`} class="transition-colors hover:text-foreground">
+            último commit {relativeDate(lastCommitAt)}
+          </a>
+        )}
+        {lastUptimeCheckAt && <span>check {relativeDate(lastUptimeCheckAt)}</span>}
+      </div>
+      {repo && (
+        <a href={`https://github.com/${repo}`} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
+          repo
+        </a>
+      )}
+    </div>
+
+    {isAdmin && (deployStatus || deployStatusAt) && (
+      <details class="mt-1 text-xs text-muted-foreground">
+        <summary class="cursor-pointer transition-colors hover:text-foreground">
+          deploy_status {deployStatusAt && `— ${relativeDate(deployStatusAt)}`}
+        </summary>
+        <pre class="mt-2 overflow-x-auto rounded-md bg-muted p-2">{JSON.stringify(deployStatus, null, 2)}</pre>
+      </details>
+    )}
+  </CardContent>
+</Card>

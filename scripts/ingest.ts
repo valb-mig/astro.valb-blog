@@ -143,6 +143,73 @@ async function syncProjectLanguages(): Promise<void> {
   console.log(`Linguagens atualizadas em ${updated}/${projects.length} projeto(s).`);
 }
 
+// Timeout curto pro fetch de uptime — não pode travar a run inteira esperando
+// um backend que não responde.
+const UPTIME_TIMEOUT_MS = 5000;
+
+// Roda todo dia junto do sync de linguagens: CI status (última run de Actions)
+// e última release pra todo projeto com `repo`; uptime (fetch com timeout) pra
+// todo projeto com `uptime_url`, tenha repo ou não (cobre backend não hospedado
+// no GitHub). Falha isolada não derruba a run, só deixa aquele campo sem update.
+async function syncProjectStatus(): Promise<void> {
+  const { data: projects, error } = await db.from('projects').select('id, repo, uptime_url');
+  if (error) throw error;
+  if (!projects?.length) return;
+
+  let updated = 0;
+  for (const project of projects) {
+    const patch: Record<string, unknown> = {};
+
+    if (project.repo) {
+      const [owner, name] = (project.repo as string).split('/');
+
+      try {
+        const { data } = await octokit.rest.actions.listWorkflowRunsForRepo({ owner, repo: name, per_page: 1 });
+        const run = data.workflow_runs[0];
+        if (run) {
+          patch.ci_status = run.conclusion ?? run.status;
+          patch.ci_checked_at = new Date().toISOString();
+        }
+      } catch (err) {
+        console.warn(`Falha ao buscar CI status de ${project.repo}:`, (err as Error).message);
+      }
+
+      try {
+        const { data: releases } = await octokit.rest.repos.listReleases({ owner, repo: name, per_page: 1 });
+        const release = releases[0];
+        if (release) {
+          patch.latest_release = release.tag_name;
+          patch.latest_release_at = release.published_at ?? release.created_at;
+        }
+      } catch (err) {
+        console.warn(`Falha ao buscar releases de ${project.repo}:`, (err as Error).message);
+      }
+    }
+
+    if (project.uptime_url) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), UPTIME_TIMEOUT_MS);
+      try {
+        const res = await fetch(project.uptime_url as string, { signal: controller.signal });
+        patch.last_status_code = res.status;
+      } catch (err) {
+        console.warn(`Falha no fetch de uptime de ${project.uptime_url}:`, (err as Error).message);
+        patch.last_status_code = null;
+      } finally {
+        clearTimeout(timeout);
+      }
+      patch.last_uptime_check_at = new Date().toISOString();
+    }
+
+    if (Object.keys(patch).length) {
+      const { error: updateError } = await db.from('projects').update(patch).eq('id', project.id);
+      if (updateError) console.warn(`Falha ao salvar status de ${project.repo ?? project.id}:`, updateError.message);
+      else updated++;
+    }
+  }
+  console.log(`Status atualizado em ${updated}/${projects.length} projeto(s).`);
+}
+
 const INGEST_CACHE_DIR = new URL('../.ingest-cache/', import.meta.url).pathname;
 
 function mirrorDirFor(fullName: string): string {
@@ -769,6 +836,7 @@ async function main(): Promise<void> {
 
     await syncProjectsFromGithub(ownedRepos);
     await syncProjectLanguages();
+    await syncProjectStatus();
 
     const newEvents = await fetchRecentEvents(allIngestRepos, date);
     const trulyNewAll = await filterTrulyNewEvents(newEvents);
