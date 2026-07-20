@@ -27,7 +27,7 @@ export function SettingsDialog() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>configurações do site</DialogDescription>
