@@ -1,0 +1,65 @@
+---
+interface Props {
+  activeDays: Set<string>;
+  weeks?: number;
+  class?: string;
+}
+
+const { activeDays, weeks = 52, class: className } = Astro.props;
+
+const today = new Date();
+const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+const totalDays = weeks * 7;
+
+const start = new Date(todayUTC);
+start.setUTCDate(start.getUTCDate() - (totalDays - 1));
+start.setUTCDate(start.getUTCDate() - start.getUTCDay()); // volta pro domingo, pra alinhar as colunas em semanas completas
+
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+const days: { date: string; active: boolean; future: boolean }[] = [];
+const cursor = new Date(start);
+while (cursor <= todayUTC) {
+  const iso = toISODate(cursor);
+  days.push({ date: iso, active: activeDays.has(iso), future: false });
+  cursor.setUTCDate(cursor.getUTCDate() + 1);
+}
+while (days.length % 7 !== 0) {
+  days.push({ date: '', active: false, future: true });
+}
+
+function formatDay(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
+}
+---
+
+<div class:list={['overflow-x-auto pb-1', className]} data-activity-heatmap>
+  <div class="grid w-max grid-flow-col grid-rows-7 gap-1">
+    {days.map((day) =>
+      day.future ? (
+        <span class="size-3 rounded-sm" />
+      ) : day.active ? (
+        <a
+          href={`/posts/atividade-${day.date}`}
+          title={`${formatDay(day.date)} — post gerado`}
+          class="size-3 rounded-sm bg-emerald-500 transition-opacity hover:opacity-70"
+        />
+      ) : (
+        <span title={formatDay(day.date)} class="size-3 rounded-sm bg-muted" />
+      ),
+    )}
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-activity-heatmap]').forEach((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+</script>
