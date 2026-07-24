@@ -1,12 +1,21 @@
 ---
 import Base from '../../layouts/Base.astro';
 import ActivityItem from '../../components/ActivityItem.astro';
+import ActivityHeatmap from '../../components/ActivityHeatmap.astro';
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/SelectField';
 import { db } from '../../lib/db';
 import type { SourceEvent } from '../../lib/db';
 
 const isAdmin = Astro.locals.isAdmin;
+
+// Posts de atividade seguem sempre o slug `atividade-YYYY-MM-DD` (scripts/ingest.ts) —
+// mais confiável que agregar `source_events`, já que dia com fallback Wakatime
+// gera post sem nenhum source_event associado.
+let heatmapQuery = db.from('posts').select('slug,draft').like('slug', 'atividade-%');
+if (!isAdmin) heatmapQuery = heatmapQuery.eq('draft', false);
+const { data: heatmapPosts } = await heatmapQuery;
+const activeDays = new Set((heatmapPosts ?? []).map((p) => p.slug.replace('atividade-', '')));
 
 const PAGE_SIZE = 40;
 const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1', 10) || 1);
@@ -80,6 +89,8 @@ function formatDay(day: string): string {
         </form>
       )}
     </div>
+
+    <ActivityHeatmap activeDays={activeDays} class="mb-10" />
 
     {groups.length > 0 ? (
       <div class="flex flex-col gap-8">
