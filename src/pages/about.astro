@@ -48,6 +48,11 @@ const allStatusProjects = (statusData ?? []) as StatusProject[];
 const statusProjects = allStatusProjects.filter(
   (p) => p.ci_status != null || p.latest_release != null || p.uptime_url != null || p.deploy_status != null,
 );
+const hasWebLink = (p: StatusProject) => (p.deploy_status as { url?: string } | null)?.url != null || p.uptime_url != null;
+const webStatusProjects = statusProjects.filter(hasWebLink);
+const CI_ORDER: Record<string, number> = { success: 0, in_progress: 1, queued: 1 };
+const ciRank = (p: StatusProject) => CI_ORDER[p.ci_status ?? ''] ?? (p.ci_status ? 2 : 3);
+const ciStatusProjects = statusProjects.filter((p) => !hasWebLink(p)).sort((a, b) => ciRank(a) - ciRank(b));
 
 // Última atividade por repo (sem coluna dedicada em `projects` — reaproveita
 // source_events, mesma fonte que já alimenta /atividade).
@@ -161,27 +166,62 @@ if (statusRepos.length) {
         <p class="mb-6 text-sm text-muted-foreground">estado atual dos projetos — CI, versão, atividade, uptime.</p>
 
         {statusProjects.length > 0 ? (
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {statusProjects.map((p, i) => (
-              <StatusCard
-                title={p.title}
-                slug={p.slug}
-                repo={p.repo}
-                languages={p.languages}
-                draft={p.draft}
-                ciStatus={p.ci_status}
-                latestRelease={p.latest_release}
-                latestReleaseAt={p.latest_release_at}
-                uptimeUrl={p.uptime_url}
-                lastStatusCode={p.last_status_code}
-                lastUptimeCheckAt={p.last_uptime_check_at}
-                deployStatus={p.deploy_status}
-                deployStatusAt={p.deploy_status_at}
-                lastCommitAt={p.repo ? lastCommitByRepo[p.repo] : null}
-                isAdmin={isAdmin}
-                delay={i * 60}
-              />
-            ))}
+          <div class="flex flex-col gap-10">
+            {webStatusProjects.length > 0 && (
+              <div>
+                <h3 class="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Com site</h3>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {webStatusProjects.map((p, i) => (
+                    <StatusCard
+                      title={p.title}
+                      slug={p.slug}
+                      repo={p.repo}
+                      languages={p.languages}
+                      draft={p.draft}
+                      ciStatus={p.ci_status}
+                      latestRelease={p.latest_release}
+                      latestReleaseAt={p.latest_release_at}
+                      uptimeUrl={p.uptime_url}
+                      lastStatusCode={p.last_status_code}
+                      lastUptimeCheckAt={p.last_uptime_check_at}
+                      deployStatus={p.deploy_status}
+                      deployStatusAt={p.deploy_status_at}
+                      lastCommitAt={p.repo ? lastCommitByRepo[p.repo] : null}
+                      isAdmin={isAdmin}
+                      delay={i * 60}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {ciStatusProjects.length > 0 && (
+              <div>
+                <h3 class="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Backend / CI</h3>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {ciStatusProjects.map((p, i) => (
+                    <StatusCard
+                      title={p.title}
+                      slug={p.slug}
+                      repo={p.repo}
+                      languages={p.languages}
+                      draft={p.draft}
+                      ciStatus={p.ci_status}
+                      latestRelease={p.latest_release}
+                      latestReleaseAt={p.latest_release_at}
+                      uptimeUrl={p.uptime_url}
+                      lastStatusCode={p.last_status_code}
+                      lastUptimeCheckAt={p.last_uptime_check_at}
+                      deployStatus={p.deploy_status}
+                      deployStatusAt={p.deploy_status_at}
+                      lastCommitAt={p.repo ? lastCommitByRepo[p.repo] : null}
+                      isAdmin={isAdmin}
+                      delay={i * 60}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <p class="text-sm text-muted-foreground">nenhum projeto com status configurado.</p>

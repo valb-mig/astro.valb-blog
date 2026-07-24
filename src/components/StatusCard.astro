@@ -1,8 +1,9 @@
 ---
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink, Tag as TagIcon } from 'lucide-react';
+import { ExternalLink, Tag as TagIcon, Terminal } from 'lucide-react';
 import LanguageBadges from './LanguageBadges.astro';
+import { faviconUrl } from '../lib/icons';
 
 interface Props {
   title: string;
@@ -54,6 +55,7 @@ const CI_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outl
 // deploy_status.url tem prioridade (link real reportado pelo deploy) — uptime_url
 // é fallback, mesmo sendo um endpoint de health-check e não a home do projeto.
 const webLink = (deployStatus?.url as string | undefined) ?? uptimeUrl ?? null;
+const isWeb = webLink != null;
 const releaseUrl = repo && latestRelease ? `https://github.com/${repo}/releases/tag/${latestRelease}` : null;
 const deployVersion = deployStatus?.version as string | undefined;
 const uptimeUp = lastStatusCode != null && lastStatusCode >= 200 && lastStatusCode < 300;
@@ -90,7 +92,14 @@ function relativeDate(iso: string): string {
 }
 ---
 
-<Card className="fade-in h-full" style={{ transitionDelay: `${delay}ms` }}>
+<Card
+  className={`fade-in h-full ${
+    isWeb
+      ? 'border-emerald-500/25 bg-gradient-to-b from-emerald-500/[0.04] to-transparent'
+      : 'border-dashed border-border/70 bg-muted/10 font-mono'
+  }`}
+  style={{ transitionDelay: `${delay}ms` }}
+>
   <CardContent className="flex h-full flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
       <a href={`/projects/${slug}`} class="group flex min-w-0 items-center gap-2">
@@ -100,7 +109,12 @@ function relativeDate(iso: string): string {
           )}
           <span class={`relative inline-flex size-2.5 rounded-full ${HEALTH_DOT[health.level]}`} />
         </span>
-        <span class="truncate text-base font-semibold transition-colors group-hover:text-foreground/80">
+        {isWeb ? (
+          <img src={faviconUrl(webLink as string)} alt="" width={16} height={16} loading="lazy" class="size-4 shrink-0 rounded-sm" />
+        ) : (
+          <Terminal size={14} className="shrink-0 text-muted-foreground" />
+        )}
+        <span class={`truncate font-semibold transition-colors group-hover:text-foreground/80 ${isWeb ? 'text-base' : 'text-sm'}`}>
           {title}
         </span>
       </a>
