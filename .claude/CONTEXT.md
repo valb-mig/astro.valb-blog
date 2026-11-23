@@ -165,6 +165,9 @@ comentário foram pra cá:
 - `src/components/MarkdownEditor.astro`: o botão "+ imagem" só pede URL e texto alternativo, sem upload, porque não existe bucket de storage configurado (só aceita URL externa).
 - `src/components/MarkdownEditor.astro`: o `<textarea id="md-content-value">` escondido fica sincronizado com o CodeMirror; é dele que os formulários de post/projeto leem o conteúdo na hora de salvar.
 - `src/components/ReactionBar.tsx`: quando o POST de reação falha (inclusive 429 do rate-limit), a atualização otimista de contagem/estado é revertida.
+- `src/lib/markdown.ts`: conteúdo pode vir de README sincronizado do GitHub (projects) — não é confiável, e o `marked` não sanitiza HTML embutido, então passa por `sanitize-html` antes de renderizar.
+- `src/components/ActivityHeatmap.astro`: o início volta pro domingo anterior pra alinhar as colunas em semanas completas.
+- `.github/workflows/report-status.yml`: o exemplo de uso pra repos consumidores (e de onde sai o `status_token`) foi pro `README.md`.
 
 Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.ts`
 + `sync.ts`, adapters em `src/infra/{github,git,llm,supabase}` e
