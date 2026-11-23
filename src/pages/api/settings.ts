@@ -1,40 +1,12 @@
-import type { APIRoute } from 'astro';
-import { db } from '../../lib/db';
-import { verifySession, SESSION_COOKIE } from '../../lib/auth';
+import { app } from '@/app';
+import { body, json, route } from '@/app/http';
 
-export const GET: APIRoute = async ({ cookies }) => {
-  if (!verifySession(cookies.get(SESSION_COOKIE)?.value ?? '')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-  }
+export const GET = route(
+  async () => json({ ...(await app.settings.all()), hasGroqKey: app.llm.groq, hasGeminiKey: app.llm.gemini }),
+  true,
+);
 
-  const { data, error } = await db.from('settings').select('key,value');
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-
-  const settings = Object.fromEntries((data ?? []).map((s) => [s.key, s.value]));
-  return new Response(
-    JSON.stringify({
-      ...settings,
-      hasGroqKey: !!import.meta.env.GROQ_API_KEY,
-      hasGeminiKey: !!import.meta.env.GEMINI_API_KEY,
-    }),
-    { headers: { 'Content-Type': 'application/json' } },
-  );
-};
-
-export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!verifySession(cookies.get(SESSION_COOKIE)?.value ?? '')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-  }
-
-  const { key, value } = await request.json();
-  if (typeof key !== 'string' || typeof value !== 'string') {
-    return new Response(JSON.stringify({ error: 'key e value são obrigatórios' }), { status: 400 });
-  }
-
-  const { error } = await db.from('settings').upsert({ key, value, updated_at: new Date().toISOString() });
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-
-  return new Response(JSON.stringify({ key, value }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
-};
+export const POST = route(async (ctx) => {
+  const { key, value } = (await body(ctx)) ?? {};
+  return json(await app.settings.set(key, value));
+}, true);

@@ -2,31 +2,31 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { REACTION_EMOJIS } from '@/lib/reaction-emojis';
+import { emojis, type Emoji } from '@/core/reaction/emoji';
+import type { Tally } from '@/core/reaction/service';
 
 interface Props {
-  postId: string;
-  initialCounts: Record<string, number>;
-  initialReacted: Record<string, boolean>;
+  post: string;
+  tally: Tally;
 }
 
-export function ReactionBar({ postId, initialCounts, initialReacted }: Props) {
-  const [counts, setCounts] = useState(initialCounts);
-  const [reacted, setReacted] = useState(initialReacted);
-  const [pending, setPending] = useState<string | null>(null);
+export function ReactionBar({ post, tally }: Props) {
+  const [counts, setCounts] = useState(tally.counts);
+  const [reacted, setReacted] = useState(tally.reacted);
+  const [pending, setPending] = useState<Emoji | null>(null);
 
-  const handleReact = async (emoji: string) => {
+  const react = async (emoji: Emoji) => {
     if (pending) return;
     setPending(emoji);
 
-    const wasReacted = reacted[emoji];
-    setCounts((c) => ({ ...c, [emoji]: (c[emoji] ?? 0) + (wasReacted ? -1 : 1) }));
-    setReacted((r) => ({ ...r, [emoji]: !wasReacted }));
+    const was = reacted[emoji];
+    setCounts((c) => ({ ...c, [emoji]: (c[emoji] ?? 0) + (was ? -1 : 1) }));
+    setReacted((r) => ({ ...r, [emoji]: !was }));
 
     const res = await fetch('/api/reactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: postId, emoji }),
+      body: JSON.stringify({ post, emoji }),
     });
 
     if (res.ok) {
@@ -34,9 +34,8 @@ export function ReactionBar({ postId, initialCounts, initialReacted }: Props) {
       setCounts((c) => ({ ...c, [emoji]: data.count }));
       setReacted((r) => ({ ...r, [emoji]: data.reacted }));
     } else {
-      // reverte otimismo (inclui 429 de rate-limit)
-      setCounts((c) => ({ ...c, [emoji]: (c[emoji] ?? 0) + (wasReacted ? 1 : -1) }));
-      setReacted((r) => ({ ...r, [emoji]: wasReacted }));
+      setCounts((c) => ({ ...c, [emoji]: (c[emoji] ?? 0) + (was ? 1 : -1) }));
+      setReacted((r) => ({ ...r, [emoji]: was }));
       if (res.status === 429) toast.error('Calma com os cliques :)');
     }
     setPending(null);
@@ -44,13 +43,13 @@ export function ReactionBar({ postId, initialCounts, initialReacted }: Props) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {REACTION_EMOJIS.map((emoji) => (
+      {emojis.map((emoji) => (
         <Button
           key={emoji}
           variant={reacted[emoji] ? 'secondary' : 'outline'}
           size="sm"
           disabled={pending === emoji}
-          onClick={() => handleReact(emoji)}
+          onClick={() => react(emoji)}
           className="gap-1.5 transition-opacity disabled:opacity-60"
         >
           {pending === emoji ? (

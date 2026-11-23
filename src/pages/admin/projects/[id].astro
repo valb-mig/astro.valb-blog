@@ -7,17 +7,14 @@ import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
 import { SelectField } from '@/components/SelectField';
 import { SwitchField } from '@/components/SwitchField';
-import { db } from '../../../lib/db';
-import type { Project } from '../../../lib/db';
+import { app } from '@/app';
 
-const { id } = Astro.params;
-const { data: project, error } = await db.from('projects').select('*').eq('id', id!).single();
+const p = await app.projects.find({ id: Astro.params.id! }, Astro.locals.admin);
 
-if (error || !project) return Astro.redirect('/projects');
+if (!p) return Astro.redirect('/projects');
 
-const p = project as Project;
 const dateStr = new Date(p.date).toISOString().split('T')[0];
-const tagsStr = (p.tags ?? []).join(', ');
+const tagsStr = p.tags.join(', ');
 
 const statusOptions = [
   { value: 'active', label: 'active' },
@@ -70,26 +67,26 @@ const statusOptions = [
 
     <div class="flex flex-col gap-1.5">
       <Label htmlFor="f-uptime-url">uptime url (health-check, opcional)</Label>
-      <Input id="f-uptime-url" type="url" value={p.uptime_url ?? ''} placeholder="https://meuservico.com/health" />
+      <Input id="f-uptime-url" type="url" value={p.uptimeUrl ?? ''} placeholder="https://meuservico.com/health" />
     </div>
 
     <div class="flex flex-col gap-1.5">
       <Label htmlFor="f-status-token">token de status (POST /api/projects/{p.id}/status)</Label>
       <div class="flex gap-2">
-        <Input id="f-status-token" type="text" readOnly value={p.status_token ?? ''} placeholder="ainda não gerado" className="font-mono text-xs" />
+        <Input id="f-status-token" type="text" readOnly value={p.token ?? ''} placeholder="ainda não gerado" className="font-mono text-xs" />
         <Button type="button" id="gen-token-btn" variant="outline">gerar novo</Button>
       </div>
     </div>
 
     <div class="flex flex-wrap gap-6">
       <div class="flex items-center gap-2.5">
-        <input type="hidden" id="f-ingest-private" value={String(p.ingest_private ?? false)} />
-        <SwitchField client:load hiddenInputId="f-ingest-private" initialChecked={p.ingest_private ?? false} />
+        <input type="hidden" id="f-ingest-private" value={String(p.private)} />
+        <SwitchField client:load hiddenInputId="f-ingest-private" initialChecked={p.private} />
         <Label htmlFor="f-ingest-private">incluir no ingest (repo privado)</Label>
       </div>
       <div class="flex items-center gap-2.5">
-        <input type="hidden" id="f-mention-allowed" value={String(p.mention_allowed ?? true)} />
-        <SwitchField client:load hiddenInputId="f-mention-allowed" initialChecked={p.mention_allowed ?? true} />
+        <input type="hidden" id="f-mention-allowed" value={String(p.mention)} />
+        <SwitchField client:load hiddenInputId="f-mention-allowed" initialChecked={p.mention} />
         <Label htmlFor="f-mention-allowed">mencionar no post de atividade</Label>
       </div>
     </div>
@@ -124,7 +121,7 @@ const statusOptions = [
 <script>
   import { toast } from 'sonner';
 
-  const projId = (document.getElementById('proj-id') as HTMLInputElement).value;
+  const id = (document.getElementById('proj-id') as HTMLInputElement).value;
   const form = document.getElementById('proj-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
 
@@ -133,9 +130,9 @@ const statusOptions = [
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
-    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
-    const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
-    const uptimeUrlVal = (document.getElementById('f-uptime-url') as HTMLInputElement).value.trim();
+    const tags = (document.getElementById('f-tags') as HTMLInputElement).value;
+    const repo = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
+    const uptime = (document.getElementById('f-uptime-url') as HTMLInputElement).value.trim();
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -143,16 +140,16 @@ const statusOptions = [
       description: (document.getElementById('f-description') as HTMLInputElement).value,
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       status: (document.getElementById('f-status') as HTMLInputElement).value,
-      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
-      repo: repoVal || null,
-      uptime_url: uptimeUrlVal || null,
-      ingest_private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
-      mention_allowed: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
+      tags: tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+      repo: repo || null,
+      uptimeUrl: uptime || null,
+      private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
+      mention: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
 
-    const res = await fetch(`/api/projects/${projId}`, {
+    const res = await fetch(`/api/projects/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -174,10 +171,10 @@ const statusOptions = [
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 
-    const res = await fetch(`/api/projects/${projId}`, {
+    const res = await fetch(`/api/projects/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status_token: token }),
+      body: JSON.stringify({ token }),
     });
 
     if (res.ok) {

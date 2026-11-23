@@ -7,55 +7,43 @@ import { IconPicker } from '@/components/IconPicker';
 import { ColorPicker } from '@/components/ColorPicker';
 import { InlineIcon } from '@/components/InlineIcon';
 import { faviconUrl } from '@/lib/icons';
+import type { Item, Section } from '@/core/stack/stack';
 
-type StackItem = {
-  id: string;
-  section_id: string;
-  label: string;
-  url: string | null;
-  icon: string | null;
-  icon_color: string | null;
-  order_index: number;
-};
+type Draft = Pick<Item, 'label' | 'icon' | 'color'> & { url: string };
 
-type StackSection = {
-  id: string;
-  title: string;
-  order_index: number;
-  stack_items: StackItem[];
-};
+const blank: Draft = { label: '', url: '', icon: null, color: null };
 
-function ItemIcon({ item }: { item: Pick<StackItem, 'icon' | 'icon_color' | 'url' | 'label'> }) {
+function ItemIcon({ item }: { item: Pick<Item, 'icon' | 'color' | 'url'> }) {
   if (item.icon) {
-    return <InlineIcon slug={item.icon} color={item.icon_color} className="size-4 shrink-0 [&_svg]:size-full" />;
+    return <InlineIcon slug={item.icon} color={item.color} className="size-4 shrink-0 [&_svg]:size-full" />;
   }
   if (item.url) return <img src={faviconUrl(item.url)} alt="" width={16} height={16} loading="lazy" decoding="async" className="size-4 shrink-0" />;
   return null;
 }
 
 export function StackAdminPanel() {
-  const [sections, setSections] = useState<StackSection[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [title, setTitle] = useState('');
 
   const load = () => {
     fetch('/api/stack-sections')
       .then((res) => res.json())
-      .then((data: StackSection[]) => setSections(data.sort((a, b) => a.order_index - b.order_index)))
+      .then((data: Section[]) => setSections(data))
       .finally(() => setLoading(false));
   };
 
   useEffect(load, []);
 
   const addSection = async () => {
-    if (!newSectionTitle.trim()) return;
+    if (!title.trim()) return;
     const res = await fetch('/api/stack-sections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newSectionTitle.trim(), order_index: sections.length }),
+      body: JSON.stringify({ title: title.trim(), order: sections.length }),
     });
     if (res.ok) {
-      setNewSectionTitle('');
+      setTitle('');
       toast.success('Seção criada.');
       load();
     } else {
@@ -91,8 +79,8 @@ export function StackAdminPanel() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-2">
         <Input
-          value={newSectionTitle}
-          onChange={(e) => setNewSectionTitle((e.target as HTMLInputElement).value)}
+          value={title}
+          onChange={(e) => setTitle((e.target as HTMLInputElement).value)}
           placeholder="Nome da seção (ex: IDEs)"
           onKeyDown={(e) => e.key === 'Enter' && addSection()}
         />
@@ -126,29 +114,19 @@ function SectionCard({
   onRename,
   onChange,
 }: {
-  section: StackSection;
+  section: Section;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onChange: () => void;
 }) {
-  const [items, setItems] = useState(section.stack_items ?? []);
-  const [newItem, setNewItem] = useState<{ label: string; url: string; icon: string | null; icon_color: string | null }>({
-    label: '',
-    url: '',
-    icon: null,
-    icon_color: null,
-  });
+  const [items, setItems] = useState(section.items);
+  const [newItem, setNewItem] = useState<Draft>(blank);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(section.title);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [itemDraft, setItemDraft] = useState<{ label: string; url: string; icon: string | null; icon_color: string | null }>({
-    label: '',
-    url: '',
-    icon: null,
-    icon_color: null,
-  });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [itemDraft, setItemDraft] = useState<Draft>(blank);
 
-  useEffect(() => setItems(section.stack_items ?? []), [section.stack_items]);
+  useEffect(() => setItems(section.items), [section.items]);
 
   const saveTitle = () => {
     const title = titleDraft.trim();
@@ -167,16 +145,16 @@ function SectionCard({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        section_id: section.id,
+        sectionId: section.id,
         label: newItem.label.trim(),
         url: newItem.url.trim() || null,
         icon: newItem.icon,
-        icon_color: newItem.icon_color,
-        order_index: items.length,
+        color: newItem.color,
+        order: items.length,
       }),
     });
     if (res.ok) {
-      setNewItem({ label: '', url: '', icon: null, icon_color: null });
+      setNewItem(blank);
       toast.success('Item adicionado.');
       onChange();
     } else {
@@ -184,12 +162,12 @@ function SectionCard({
     }
   };
 
-  const startEditItem = (item: StackItem) => {
-    setEditingItemId(item.id);
-    setItemDraft({ label: item.label, url: item.url ?? '', icon: item.icon, icon_color: item.icon_color });
+  const startEditItem = (item: Item) => {
+    setEditing(item.id);
+    setItemDraft({ label: item.label, url: item.url ?? '', icon: item.icon, color: item.color });
   };
 
-  const cancelEditItem = () => setEditingItemId(null);
+  const cancelEditItem = () => setEditing(null);
 
   const saveItem = async (id: string) => {
     if (!itemDraft.label.trim()) return;
@@ -200,7 +178,7 @@ function SectionCard({
         label: itemDraft.label.trim(),
         url: itemDraft.url.trim() || null,
         icon: itemDraft.icon,
-        icon_color: itemDraft.icon_color,
+        color: itemDraft.color,
       }),
     });
     if (res.ok) {
@@ -212,12 +190,12 @@ function SectionCard({
                 label: itemDraft.label.trim(),
                 url: itemDraft.url.trim() || null,
                 icon: itemDraft.icon,
-                icon_color: itemDraft.icon_color,
+                color: itemDraft.color,
               }
             : i,
         ),
       );
-      setEditingItemId(null);
+      setEditing(null);
       toast.success('Item atualizado.');
     } else {
       toast.error('Erro ao atualizar item.');
@@ -292,13 +270,13 @@ function SectionCard({
 
       <div className="flex flex-col gap-1.5">
         {items.map((item) =>
-          editingItemId === item.id ? (
+          editing === item.id ? (
             <div key={item.id} className="flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1.5">
               <IconPicker value={itemDraft.icon} onChange={(icon) => setItemDraft({ ...itemDraft, icon })} />
               {itemDraft.icon && (
                 <ColorPicker
-                  value={itemDraft.icon_color}
-                  onChange={(icon_color) => setItemDraft({ ...itemDraft, icon_color })}
+                  value={itemDraft.color}
+                  onChange={(color) => setItemDraft({ ...itemDraft, color })}
                 />
               )}
               <Input
@@ -359,8 +337,8 @@ function SectionCard({
         <IconPicker value={newItem.icon} onChange={(icon) => setNewItem({ ...newItem, icon })} />
         {newItem.icon && (
           <ColorPicker
-            value={newItem.icon_color}
-            onChange={(icon_color) => setNewItem({ ...newItem, icon_color })}
+            value={newItem.color}
+            onChange={(color) => setNewItem({ ...newItem, color })}
           />
         )}
         <Input

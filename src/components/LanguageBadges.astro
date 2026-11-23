@@ -1,12 +1,14 @@
 ---
+import type { Languages } from '@/core/project/project';
+
 interface Props {
-  languages?: Record<string, number> | null;
+  languages?: Languages | null;
   max?: number;
 }
 
 const { languages, max = 4 } = Astro.props;
 
-const LANGUAGE_COLORS: Record<string, string> = {
+const colors: { [lang: string]: string } = {
   TypeScript: '#3178c6',
   JavaScript: '#f1e05a',
   Python: '#3572A5',
@@ -26,20 +28,20 @@ const LANGUAGE_COLORS: Record<string, string> = {
   Markdown: '#083fa1',
 };
 
-const DEFAULT_COLOR = '#6b7280';
+const fallback = '#6b7280';
 
-const topLanguages = Object.entries(languages ?? {})
+const top = Object.entries(languages ?? {})
   .sort(([, a], [, b]) => b - a)
   .slice(0, max);
 ---
 
-{topLanguages.length > 0 && (
+{top.length > 0 && (
   <div class="flex flex-wrap items-center gap-2">
-    {topLanguages.map(([name, percent]) => (
+    {top.map(([name, percent]) => (
       <span class="flex items-center gap-1 text-xs text-muted-foreground">
         <span
           class="size-2 shrink-0 rounded-full"
-          style={`background-color: ${LANGUAGE_COLORS[name] ?? DEFAULT_COLOR}`}
+          style={`background-color: ${colors[name] ?? fallback}`}
         />
         {name}
         <span class="opacity-60">{percent.toFixed(0)}%</span>

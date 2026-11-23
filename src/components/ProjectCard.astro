@@ -3,42 +3,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
+import type { Status, Summary } from '@/core/project/project';
 import LanguageBadges from './LanguageBadges.astro';
 
 interface Props {
-  id?: string;
-  title: string;
-  description: string;
-  date: Date;
-  slug: string;
-  tags?: string[];
-  status?: 'active' | 'completed' | 'archived';
-  repo?: string;
-  languages?: Record<string, number> | null;
-  postCount?: number;
-  draft?: boolean;
-  isAdmin?: boolean;
+  project: Summary;
+  admin?: boolean;
   delay?: number;
 }
 
-const {
-  id,
-  title,
-  description,
-  slug,
-  tags = [],
-  status = 'active',
-  repo,
-  languages,
-  postCount = 0,
-  draft = false,
-  isAdmin = false,
-  delay = 0,
-} = Astro.props;
+const { project, admin = false, delay = 0 } = Astro.props;
+const { id, title, description, slug, tags, status, repo, languages, posts, draft } = project;
 
 const repoUrl = repo ? `https://github.com/${repo}` : undefined;
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+const statusVariant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
   completed: 'secondary',
   archived: 'outline',
@@ -56,7 +35,7 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
       <div class="flex shrink-0 items-center gap-1.5">
         {draft && <Badge variant="outline">draft</Badge>}
         <Badge variant={statusVariant[status]}>{status}</Badge>
-        {isAdmin && id && (
+        {admin && (
           <div class="flex items-center gap-0.5">
             <a
               href={`/admin/projects/${id}`}
@@ -80,9 +59,9 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
         {tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
       </div>
       <div class="flex items-center gap-3 text-xs text-muted-foreground">
-        {postCount > 0 && (
+        {posts > 0 && (
           <a href={`/projects/${slug}#posts`} class="transition-colors hover:text-foreground">
-            {postCount} posts
+            {posts} posts
           </a>
         )}
         {repoUrl && (

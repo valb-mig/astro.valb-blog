@@ -25,7 +25,7 @@ export const body = <T = { [key: string]: unknown }>(ctx: APIContext): Promise<T
 export const route =
   (fn: (ctx: APIContext) => Promise<Response> | Response, admin = false): APIRoute =>
   async (ctx) => {
-    if (admin && !ctx.locals.isAdmin) return json({ error: 'Unauthorized' }, 401);
+    if (admin && !ctx.locals.admin) return json({ error: 'Unauthorized' }, 401);
     try {
       return await fn(ctx);
     } catch (err) {

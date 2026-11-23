@@ -5,143 +5,88 @@ import { Button } from '@/components/ui/button';
 import { ReactionBar } from '@/components/ReactionBar';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
-import { db } from '../../lib/db';
-import type { Post } from '../../lib/db';
-import { REACTION_EMOJIS, fingerprint } from '../../lib/reactions';
+import { app } from '@/app';
+import { visitor } from '@/app/http';
 import { renderMarkdown } from '../../lib/markdown';
 
-const { slug } = Astro.params;
-const isAdmin = Astro.locals.isAdmin;
+const admin = Astro.locals.admin;
+const post = await app.posts.find({ slug: Astro.params.slug! }, admin);
 
-let postQuery = db.from('posts').select('*').eq('slug', slug!);
-if (!isAdmin) postQuery = postQuery.eq('draft', false);
-const { data: post, error } = await postQuery.single();
+if (!post) return Astro.redirect('/posts');
 
-if (error || !post) return Astro.redirect('/posts');
+const [html, related, tally] = await Promise.all([
+  renderMarkdown(post.content),
+  app.posts.related(post),
+  app.reactions.tally(post.id, visitor(Astro)),
+]);
 
-const p = post as Post;
-
-const contentHtml = await renderMarkdown(p.content);
-
-const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
+const dateStr = new Date(post.date).toLocaleDateString('pt-BR', {
   year: 'numeric',
   month: 'long',
   day: 'numeric',
 });
 
-const { data: postProjectRows } = await db
-  .from('post_projects')
-  .select('projects(id, slug, title)')
-  .eq('post_id', p.id);
-
-type PostProjectRow = { projects: { id: string; slug: string; title: string } | null };
-const linkedProjects = ((postProjectRows ?? []) as unknown as PostProjectRow[])
-  .map((row) => row.projects)
-  .filter((proj): proj is { id: string; slug: string; title: string } => proj !== null);
-
-const projectIds = linkedProjects.map((proj) => proj.id);
-const { data: siblingRows } = projectIds.length
-  ? await db
-      .from('post_projects')
-      .select('project_id, posts!inner(id, slug, title, date, draft)')
-      .in('project_id', projectIds)
-      .eq('posts.draft', false)
-  : { data: [] };
-
-type SiblingRow = { project_id: string; posts: { id: string; slug: string; title: string; date: string } };
-const postsByProject: Record<string, { id: string; slug: string; title: string; date: string }[]> = {};
-for (const row of (siblingRows ?? []) as unknown as SiblingRow[]) {
-  if (row.posts.id === p.id) continue;
-  (postsByProject[row.project_id] ??= []).push(row.posts);
-}
-for (const list of Object.values(postsByProject)) {
-  list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-}
-
-const allSiblingPosts = (() => {
-  const seen = new Map<string, { id: string; slug: string; title: string; date: string }>();
-  for (const list of Object.values(postsByProject)) {
-    for (const sibling of list) seen.set(sibling.id, sibling);
-  }
-  return [...seen.values()].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-})();
-
-const selectedProjectSlug = Astro.url.searchParams.get('project');
-const selectedProject = linkedProjects.find((proj) => proj.slug === selectedProjectSlug);
-const filteredSiblingPosts = selectedProject ? postsByProject[selectedProject.id] ?? [] : allSiblingPosts;
-
-const { data: reactionRows } = await db.from('post_reactions').select('emoji, fingerprint').eq('post_id', p.id);
-const fp = fingerprint(Astro);
-const reactionCounts: Record<string, number> = {};
-const reactedByFp: Record<string, boolean> = {};
-for (const emoji of REACTION_EMOJIS) {
-  reactionCounts[emoji] = 0;
-  reactedByFp[emoji] = false;
-}
-for (const row of reactionRows ?? []) {
-  reactionCounts[row.emoji] = (reactionCounts[row.emoji] ?? 0) + 1;
-  if (row.fingerprint === fp) reactedByFp[row.emoji] = true;
-}
-
+const selected = post.projects.find((p) => p.slug === Astro.url.searchParams.get('project'));
+const siblings = selected ? (related.byProject[selected.id] ?? []) : related.all;
 ---
 
 <Base
-  title={p.title}
-  description={p.description}
+  title={post.title}
+  description={post.description}
   og={{ type: 'article' }}
   breadcrumb={[
     { label: 'Home', href: '/' },
     { label: 'Posts', href: '/posts' },
-    { label: p.slug },
+    { label: post.slug },
   ]}
 >
   <div class="mx-auto max-w-4xl px-6 py-16 md:grid md:grid-cols-[1fr_220px] md:gap-10">
     <article class="max-w-2xl">
 
       <header class="mb-10 border-b border-border pb-8">
-        {isAdmin && (
+        {admin && (
           <div class="mb-4 flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
-            {p.draft && <Badge variant="outline">draft</Badge>}
+            {post.draft && <Badge variant="outline">draft</Badge>}
             <span class="text-muted-foreground">visão admin</span>
             <div class="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="sm" asChild>
-                <a href={`/admin/posts/${p.id}`} class="flex items-center gap-1">
+                <a href={`/admin/posts/${post.id}`} class="flex items-center gap-1">
                   <Pencil size={13} />
                   editar
                 </a>
               </Button>
-              <DeleteButton id={p.id} title={p.title} resource="posts" redirectTo="/posts" client:load />
+              <DeleteButton id={post.id} title={post.title} resource="posts" redirectTo="/posts" client:load />
             </div>
           </div>
         )}
-        <h1 class="mb-3 text-3xl font-semibold leading-tight">{p.title}</h1>
-        <p class="mb-5 text-muted-foreground">{p.description}</p>
+        <h1 class="mb-3 text-3xl font-semibold leading-tight">{post.title}</h1>
+        <p class="mb-5 text-muted-foreground">{post.description}</p>
 
         <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <span>{dateStr}</span>
-          <span>{p.reading_time} min de leitura</span>
+          <span>{post.readingTime} min de leitura</span>
           <div class="flex flex-wrap gap-2 md:hidden">
-            {linkedProjects.map((proj) => (
-              <a href={`/projects/${proj.slug}`} class="transition-colors hover:text-foreground">
-                <Badge variant="outline">{proj.title}</Badge>
+            {post.projects.map((p) => (
+              <a href={`/projects/${p.slug}`} class="transition-colors hover:text-foreground">
+                <Badge variant="outline">{p.title}</Badge>
               </a>
             ))}
           </div>
         </div>
 
-        {(p.tags ?? []).length > 0 && (
+        {post.tags.length > 0 && (
           <div class="mt-4 flex flex-wrap gap-2">
-            {(p.tags ?? []).map((tag: string) => (
+            {post.tags.map((tag) => (
               <a href={`/posts?tag=${tag}`}><Badge variant="outline">{tag}</Badge></a>
             ))}
           </div>
         )}
       </header>
 
-      <div class="prose prose-invert prose-sm max-w-none" set:html={contentHtml} />
+      <div class="prose prose-invert prose-sm max-w-none" set:html={html} />
 
       <div class="mt-10 border-t border-border pt-6">
-        <ReactionBar client:load postId={p.id} initialCounts={reactionCounts} initialReacted={reactedByFp} />
+        <ReactionBar client:load post={post.id} tally={tally} />
       </div>
 
       <div class="mt-16 border-t border-border pt-8">
@@ -151,42 +96,42 @@ for (const row of reactionRows ?? []) {
       </div>
     </article>
 
-    {linkedProjects.length > 0 && (
+    {post.projects.length > 0 && (
       <aside class="hidden md:block">
         <div class="sticky top-24 flex flex-col gap-8">
           <div>
             <p class="mb-3 text-sm font-medium text-muted-foreground">projetos vinculados</p>
             <div class="flex flex-col gap-1.5">
-              {linkedProjects.map((proj) => (
-                <a href={`/projects/${proj.slug}`} class="transition-colors hover:text-foreground">
-                  <Badge variant="outline">{proj.title}</Badge>
+              {post.projects.map((p) => (
+                <a href={`/projects/${p.slug}`} class="transition-colors hover:text-foreground">
+                  <Badge variant="outline">{p.title}</Badge>
                 </a>
               ))}
             </div>
           </div>
 
-          {allSiblingPosts.length > 0 && (
+          {related.all.length > 0 && (
             <div>
               <p class="mb-3 text-sm font-medium text-muted-foreground">posts dos projetos vinculados</p>
               <div class="mb-3 flex flex-wrap gap-1.5">
-                <a href={`/posts/${p.slug}`}>
-                  <Badge variant={!selectedProject ? 'default' : 'outline'}>todos</Badge>
+                <a href={`/posts/${post.slug}`}>
+                  <Badge variant={!selected ? 'default' : 'outline'}>todos</Badge>
                 </a>
-                {linkedProjects.map((proj) => (
-                  <a href={`/posts/${p.slug}?project=${proj.slug}`}>
-                    <Badge variant={selectedProject?.slug === proj.slug ? 'default' : 'outline'}>{proj.title}</Badge>
+                {post.projects.map((p) => (
+                  <a href={`/posts/${post.slug}?project=${p.slug}`}>
+                    <Badge variant={selected?.slug === p.slug ? 'default' : 'outline'}>{p.title}</Badge>
                   </a>
                 ))}
               </div>
-              {filteredSiblingPosts.length > 0 ? (
+              {siblings.length > 0 ? (
                 <ul class="flex flex-col gap-1.5">
-                  {filteredSiblingPosts.map((sibling) => (
+                  {siblings.map((s) => (
                     <li>
                       <a
-                        href={`/posts/${sibling.slug}`}
+                        href={`/posts/${s.slug}`}
                         class="line-clamp-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        {sibling.title}
+                        {s.title}
                       </a>
                     </li>
                   ))}

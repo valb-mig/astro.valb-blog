@@ -3,36 +3,18 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
+import type { Summary } from '@/core/post/post';
 
 interface Props {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  date: string;
-  tags?: string[];
-  projects?: { slug: string; title: string }[];
-  reading_time?: number;
-  draft?: boolean;
-  isAdmin?: boolean;
+  post: Summary;
+  admin?: boolean;
   delay?: number;
 }
 
-const {
-  id,
-  slug,
-  title,
-  description,
-  date,
-  tags = [],
-  projects = [],
-  reading_time = 1,
-  draft = false,
-  isAdmin = false,
-  delay = 0,
-} = Astro.props;
+const { post, admin = false, delay = 0 } = Astro.props;
+const { id, slug, title, description, tags, projects, readingTime, draft } = post;
 
-const dateStr = new Date(date).toLocaleDateString('pt-BR', {
+const dateStr = new Date(post.date).toLocaleDateString('pt-BR', {
   year: 'numeric',
   month: 'short',
   day: 'numeric',
@@ -44,7 +26,7 @@ const dateStr = new Date(date).toLocaleDateString('pt-BR', {
     <CardContent className="flex h-full flex-col gap-3">
       <div class="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span class="whitespace-nowrap">{dateStr}</span>
-        {isAdmin && (
+        {admin && (
           <div class="flex shrink-0 items-center gap-0.5">
             <a
               href={`/admin/posts/${id}`}
@@ -79,7 +61,7 @@ const dateStr = new Date(date).toLocaleDateString('pt-BR', {
         <div class="flex flex-wrap gap-1.5">
           {tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
         </div>
-        <span class="whitespace-nowrap text-xs text-muted-foreground">{reading_time} min</span>
+        <span class="whitespace-nowrap text-xs text-muted-foreground">{readingTime} min</span>
       </div>
     </CardContent>
   </Card>
