@@ -1,3 +1,4 @@
+import type { Drafts } from '@/core/ingest/port';
 import type { Posts as Port, Query } from '@/core/post/port';
 import { byDate, type Data, type Key, type Post, type Ref, type Summary } from '@/core/post/post';
 import { counted, defined, must, type Db } from './client';
@@ -49,7 +50,7 @@ const row = (d: Partial<Data>) =>
     reading_time: d.readingTime,
   });
 
-export class Posts implements Port {
+export class Posts implements Port, Drafts {
   constructor(private db: Db) {}
 
   async list(q: Query): Promise<Summary[]> {
@@ -87,6 +88,17 @@ export class Posts implements Port {
   async update(id: string, data: Partial<Data>): Promise<Post> {
     must(await this.db.from('posts').update(row(data)).eq('id', id).select().single());
     return (await this.find({ id }, true)) as Post;
+  }
+
+  async open(slug: string, title: string, description: string): Promise<string> {
+    const r = must(
+      await this.db
+        .from('posts')
+        .insert({ slug, title, description, content: '', draft: true, tags: ['activity'], reading_time: 1 })
+        .select('id')
+        .single(),
+    ) as { id: string };
+    return r.id;
   }
 
   async remove(id: string): Promise<void> {
