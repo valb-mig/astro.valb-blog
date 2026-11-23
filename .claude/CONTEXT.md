@@ -123,6 +123,49 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
 (`src/lib/auth.ts`), não expira automaticamente no servidor além do
 `maxAge` do cookie (7 dias).
 
+## Refactor hexagonal + code standards (2026-11-23)
+
+Código aplicando os code standards do usuário: nomes curtos em inglês, zero
+comentário, abstração/DDD. Camadas:
+
+- `src/core/` — entidades camelCase, ports (interfaces) e services, sem
+  import de Astro/Supabase/Octokit. Testado com fakes em memória
+  (`src/test/`), via vitest.
+- `src/infra/` — adapters (Supabase, GitHub, crypto, ícones). Único lugar
+  que conhece snake_case do banco.
+- `src/app/` — composition root (`app/index.ts`) e helpers HTTP
+  (`app/http.ts`: `route()` checa admin e mapeia `Fault` do core pra status).
+- Páginas e rotas de API são adapters finos que chamam `app.*`.
+  `Astro.locals.admin` (era `isAdmin`). Payloads JSON da API são as
+  entidades camelCase.
+- `src/lib/` sobra só com helpers de UI (`icons`, `toast`, `markdown`,
+  `utils` do shadcn).
+
+Texto de UI, prompts do LLM e URLs públicas ficam em pt-BR — só o código é
+em inglês. Comentário não existe mais no código; os porquês que estavam em
+comentário foram pra cá:
+
+- `src/infra/crypto.ts` (`equal`): hasheia os dois lados (sha256) antes do `timingSafeEqual` — ele exige buffers do mesmo tamanho, e comparar direto vazaria o tamanho da credencial certa por timing.
+- `src/app/index.ts` (limiters de login e reação): rate limit em memória (`core/limit.ts`), por IP no login (5 / 15min) e por fingerprint na reação (10 / min). Reseta em cold start (serverless) — aceitável, o objetivo é frear brute force / rajada, não contagem exata entre instâncias.
+- `src/app/http.ts` (`ip` vs `visitor`): login usa `clientAddress` primeiro (IP real da conexão, não spoofável) e só cai pro `x-forwarded-for` se o runtime não expuser; o fingerprint de reação usa o header primeiro (mesmo comportamento de antes, pra não zerar quem já reagiu).
+- `src/core/update/service.ts` (`announce`): fire-and-forget — erro ao registrar novidade nunca derruba a criação de post/projeto/item de stack.
+- `src/app/index.ts` (`GH_READ_TOKEN`): token só-leitura do painel de orgs, separado do `GH_TOKEN` do ingest (escopo amplo demais pra ficar no runtime da Vercel).
+- `src/core/ingest/orgs.ts` (`remove`): remover org mantém os repos dela em `ingest_org_repos` (inertes, o ingest só lista repo de org configurada) — readicionar restaura a seleção.
+- `src/core/ingest/orgs.ts` (`toggle`): read-modify-write no servidor, cliente manda só o delta; o painel serializa os toggles pra um clique rápido não sobrescrever o outro com lista velha.
+- `src/core/ingest/orgs.ts` (`repos`): ordenado por push mais recente — repo que você mexe hoje aparece no topo.
+- `src/core/ingest/orgs.ts` (`add`): valida no GitHub e salva o login canônico (case certo), porque `repos.listForOrg` devolve `full_name` nesse case.
+- `src/pages/api/projects/[id]/status.ts`: sem cookie de admin — chamado por CI externo (`report-status.yml`, `workflow_call`), autenticado por token opaco por projeto (`status_token`) via `Authorization: Bearer`.
+- `src/app/env.ts`: `import.meta.env` só existe no Vite/Astro; o ingest roda via `tsx`, então cai pra `process.env`.
+- `src/core/project/vital.ts`: `deploy_status.url` tem prioridade sobre `uptime_url` como link do projeto (link real reportado pelo deploy; `uptime_url` costuma ser endpoint de health-check). Vital = um sinal só pra escaneio rápido: uptime > CI > só reporta deploy > sem dado.
+- `src/core/event/event.ts` (`days`): agrupa por dia calendário UTC — mesma convenção do slug `atividade-YYYY-MM-DD` do ingest.
+- `src/core/post/service.ts` (`days`): heatmap vem dos posts `atividade-*`, não de `source_events` — dia com fallback Wakatime gera post sem nenhum evento.
+- `src/pages/atividade/index.astro` (feed, hoje em `src/core/event/service.ts` `feed` com `linked: !admin`): visitante só vê evento linkado a um post (`post_events`) — o ingest só linka evento mencionável, então commit de repo privado de org ou com "mencionar" desligado fica rastreado em `source_events` mas não aparece no /atividade. Admin continua vendo tudo.
+- `src/pages/about.astro` (última atividade por repo, hoje em `src/core/project/service.ts` `board` → `events.last`): não existe coluna dedicada em `projects`; reaproveita `source_events`, a mesma fonte que já alimenta /atividade.
+- `src/components/OrgIngestPanel.tsx` (`queue`/`enqueue`): toggles de repo rodam em fila — cada POST faz read-modify-write da lista inteira no servidor, então dois em paralelo poderiam se sobrescrever.
+- `src/components/MarkdownEditor.astro`: o botão "+ imagem" só pede URL e texto alternativo, sem upload, porque não existe bucket de storage configurado (só aceita URL externa).
+- `src/components/MarkdownEditor.astro`: o `<textarea id="md-content-value">` escondido fica sincronizado com o CodeMirror; é dele que os formulários de post/projeto leem o conteúdo na hora de salvar.
+- `src/components/ReactionBar.tsx`: quando o POST de reação falha (inclusive 429 do rate-limit), a atualização otimista de contagem/estado é revertida.
+
 ## Decisões importantes
 
 - **SSR + Supabase em vez de content collections** — usuário queria
