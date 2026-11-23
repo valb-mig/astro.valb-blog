@@ -1,8 +1,8 @@
 # TODO
 
-Ver `TODO.md` na raiz do repo pra notas originais em prosa (brainstorm bruto
-do refactor). Este arquivo é a versão estruturada/viva, cruzada com o estado
-real do código.
+O brainstorm original em prosa (antes na raiz, `TODO.md`) está no fim deste
+arquivo. O resto é a versão estruturada/viva, cruzada com o estado real do
+código.
 
 ## Refactor de UX do admin (2026-07-15, concluído)
 
@@ -35,7 +35,7 @@ real do código.
       projeto Supabase próprio pra dev local + variável de ambiente separada,
       senão teste local escreve dado real (postado em 2026-07-15 junto com
       as tabelas novas de `stack_sections`/`stack_items`/`updates`)
-- [ ] Atualizar `site` em `astro.config.mjs` (ainda `'https://fake'`)
+- [x] Atualizar `site` em `astro.config.mjs` — `https://valb-blog.vercel.app` (#17)
 - [x] Configurar secrets do GitHub Actions pro `.github/workflows/ingest.yml`
       (2026-07-10): `GH_TOKEN`, `GH_USERNAME`, `GROQ_API_KEY`, `GEMINI_API_KEY`,
       `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` setados via `gh secret set`
@@ -196,3 +196,52 @@ real do código.
 - [x] Sync diário de projetos do GitHub em `scripts/ingest.ts` (2026-07-08)
       — cria projeto novo por repo sem registro ainda, nunca sobrescreve
       existente; 44 projetos sincronizados na primeira run
+
+## Brainstorm original (2026-07-07)
+
+Notas em prosa do usuário que deram origem ao refactor do blog. Histórico, quase tudo já feito.
+
+> Mudar o escopo do projeto, não so posts do newsletter mas também acompanhamento do meu trabalho
+>
+> de que forma
+>
+> tive um insigh, uma pagina onde mostra no que estou trabalhando e o que eu estou fazendo baseado nos meus commits, e usando uma IA como groq para normalizar e falar como eu falo
+>
+> exemplo: 
+> "feat: adiciona funcionalidade de adicionar novos posts"
+>
+> o que normalizaria para meu blog:
+>
+> "Hoje implementei uma funcionalidade que permite que os usuários possam adicionar novos posts ao blog."
+>
+> atualizar sempre no fim do DIA para não ficar o tempo todo atualizando o blog, em relação a essa sessão
+>
+> permitir que pos posts do blog se vinculem a projetos
+>
+> então a ideia é refatorar todo o blog 
+>
+> ## funcionalidades
+>
+> Projetos pessoais fora do github
+>
+> projetos repositorios do github (possibilidade de ver linguagens e stack utilizadas)
+>
+> em projetos é possivel fazer multiplos POSTS, caso o projeto seja vinculado a um repositorio, poder fazer posts vinculados a commits, issues, pull requests, etc, poder vincular projetos a outros projetos
+>
+> poder vincular imagens a commits, issues, pull requests, etc isso dentro do campo de texto do post
+>
+> poder realizar comentarios em posts e reações com emoji, estilo do github
+>
+> refazer o layout do blog
+>
+> deixar generico a captura dos dados do github, pretendo mudar para outra API, mas não tenho ela feita ainda
+>
+> quero usar o wakatime para mostrar o tempo que eu estou trabalhando, isso pode ficar no topo do blog, como um widget
+>
+> ter uma aba sobre mim, depois te mando umas imagens minhas pra preencher, por enquanto vou usar o meu avatar
+>
+> queria também que o blog anunciasse quando eu fizesse uma Release no github
+>
+> vamos debater e melhorar esse blog finalmente
+>
+> e uma coisa MOBILE FIRST, porque quero postar e acompanhar meus projetos no celular
