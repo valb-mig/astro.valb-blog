@@ -57,7 +57,7 @@ data"; login is the one place `isAdmin` is still false).
 | `/` | `src/pages/index.astro` — admin-only: stats cards + "ingests recentes" + "rodar ingest agora" button |
 | `/posts` | `src/pages/posts/index.astro` — tag filter via `?tag=`; admin sees drafts (badge on `PostCard`) + "+ novo post" |
 | `/posts/[slug]` | `src/pages/posts/[slug].astro` — reactions below content; admin sees an editar/deletar toolbar + draft badge |
-| `/atividade` | `src/pages/atividade/index.astro` — paginated feed of `source_events`, grouped by UTC day; admin gets a repo filter + delete per event |
+| `/atividade` | `src/pages/atividade/index.astro` — paginated feed of `source_events`, grouped by UTC day; visitors only see events linked to a post (`post_events!inner` — i.e. mentionable ones, so private-org / "mencionar"-off commits stay hidden); admin sees everything + repo filter + delete per event |
 | `/projects`, `/projects/[slug]` | `src/pages/projects/` — language/stack badges per repo; same admin treatment as posts (drafts, edit/delete on `ProjectCard` + detail toolbar, "+ novo projeto") |
 | `/projects/graph` | interactive project↔post graph |
 | `/about` | `src/pages/about.astro` — stack sections/items public; admin sees a "configurar" button opening a `Dialog` with `StackAdminPanel` (no more `/admin/about` page) |
@@ -71,14 +71,15 @@ data"; login is the one place `isAdmin` is still false).
 | `/api/icons/search`, `/api/icons/[slug]` | admin-only, icon search/lookup for the stack-item icon picker (`src/lib/simple-icons.server.ts`, backed by `@iconify-json/simple-icons`) |
 | `/api/updates` (+ `[id]`) | GET public (paginated, `?before=`), POST/DELETE admin-only — backs `UpdatesAdminPanel.tsx` (opened as a modal from the Header, admin-only, no more `/admin/updates` page) |
 | `/api/settings` | GET admin-only (also returns `hasGroqKey`/`hasGeminiKey` booleans, never the actual secrets), POST admin-only upsert — backs `SettingsAdminPanel.tsx` (modal from the Header gear icon, no more `/admin/settings` page) |
+| `/api/ingest/orgs` (GET/POST/DELETE), `/api/ingest/orgs/[org]/repos`, `/api/ingest/org-repos` | admin-only — backs `OrgIngestPanel.tsx` (Settings modal, "organizações no ingest"): add/remove GitHub orgs (validated + canonical login via API), list an org's repos, opt a repo in/out. Stored in `settings` as JSON arrays (`ingest_orgs`, `ingest_org_repos`, `src/lib/ingest-config.ts`). Needs `GH_READ_TOKEN` in the web runtime (`src/lib/github.server.ts`) — never the ingest's `GH_TOKEN` |
 | `/api/wakatime` | proxy + 5min in-memory cache for Wakatime stats — widget lives on the home hero only, not `/posts` |
 | `/api/auth/login`, `/api/auth/logout` | admin session (HMAC-signed cookie, `src/lib/auth.ts`) |
 
 ### Ingest pipeline (`scripts/ingest.ts` + `.github/workflows/ingest.yml`, daily cron `55 23 * * *` UTC)
 
-1. Syncs new GitHub repos into `projects` (never overwrites existing rows — manual admin edits survive reruns)
+1. Syncs new GitHub repos into `projects` (never overwrites existing rows — manual admin edits survive reruns). Sources: every repo the user owns (`affiliation: 'owner'`) **plus**, as of 2026-10-09, org repos explicitly opted in via the Settings modal (`fetchOptedInOrgRepos` — only orgs in `ingest_orgs`, only repos in `ingest_org_repos`). Private repos never become projects; private opted-in org repos are tracked in `source_events` but always non-mentionable
 2. Refreshes `projects.languages` for every project with a `repo` set (`octokit.repos.listLanguages`)
-3. For each public owned repo: bare-mirrors it into `.ingest-cache/` (`git clone/fetch --depth 100` — **not** `--shallow-since`, which hits a git-client bug against GitHub's smart-HTTP: "error processing shallow info: 4"), then reads `git log` for the target date's commits
+3. For each ingested repo (public owned + opted-in org + `ingest_private` projects): bare-mirrors it into `.ingest-cache/` (`git clone/fetch --depth 100` — **not** `--shallow-since`, which hits a git-client bug against GitHub's smart-HTTP: "error processing shallow info: 4"), then reads `git log` for the target date's commits. Repos not owned by `GH_USERNAME` get an author filter (`--fixed-strings --author=<email>` per email, from `fetchAuthorEmails`: GitHub noreply + verified account emails) so teammates' commits never count as yours
 4. Upserts new `source_events` (dedupe by sha), rebuilds the day's "atividade" post from **all** linked events (not just the new batch) via two LLM calls (day-level paragraph + per-repo JSON paragraph) — provider is pluggable (`src/lib/llm.ts`: Groq or Gemini, auto-falls-back Gemini→Groq on error if `GROQ_API_KEY` is set)
 5. **As of 2026-07-12, if `git log` finds zero commits for the day across every repo**, falls back to Wakatime (`getWakatimeSummaryForDate` in `src/lib/wakatime.ts`, the `summaries` endpoint — not the `stats/last_7_days` one the home widget uses) instead of leaving the day without a post. Same "atividade" post/slug/title, just a narrative built from time-coded + language data instead of commits — skipped entirely if Wakatime has no key configured or logged under 5 minutes that day (`WAKATIME_MIN_SECONDS` in `scripts/ingest.ts`). Requires `WAKATIME_API_KEY` in the ingest env too now (`.github/workflows/ingest.yml`), not just Vercel's.
 

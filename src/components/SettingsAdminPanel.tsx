@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { RepoIngestPanel } from '@/components/RepoIngestPanel';
+import { OrgIngestPanel } from '@/components/OrgIngestPanel';
 
 type Settings = {
   llm_provider?: string;
@@ -129,6 +130,15 @@ export function SettingsAdminPanel() {
           <strong>mencionar</strong>: commits rastreados e incluídos no post. <strong>privado</strong>: espelha repos privados no ingest.
         </p>
         <RepoIngestPanel />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium">organizações no ingest</p>
+        <p className="text-xs text-muted-foreground">
+          repos de organização entram só quando ligados aqui, e só com commits seus (filtro por e-mail de autor).
+          público vira projeto no próximo ingest; privado é rastreado mas nunca mencionado no post.
+        </p>
+        <OrgIngestPanel />
       </div>
     </div>
   );

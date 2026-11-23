@@ -7,6 +7,7 @@ import { existsSync } from 'fs';
 import { db, calcReadingTime, type SourceEvent } from '../src/lib/db.ts';
 import { getLlmProvider, type LlmStrategy } from '../src/lib/llm.ts';
 import { getWakatimeSummaryForDate, type WakatimeDaySummary } from '../src/lib/wakatime.ts';
+import { getIngestOrgs, getIngestOrgRepos, repoOwner } from '../src/lib/ingest-config.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -55,11 +56,67 @@ async function uniqueProjectSlug(name: string): Promise<string> {
   }
 }
 
-async function fetchOwnedRepos() {
+// Campos em comum entre `listForAuthenticatedUser` e `listForOrg` (tipos
+// diferentes no Octokit) — o que o sync de projeto e o ingest usam.
+type GithubRepo = {
+  full_name: string;
+  name: string;
+  private: boolean;
+  description: string | null;
+  created_at?: string | null;
+  topics?: string[];
+  archived?: boolean;
+};
+
+async function fetchOwnedRepos(): Promise<GithubRepo[]> {
   return octokit.paginate(octokit.rest.repos.listForAuthenticatedUser, {
     affiliation: 'owner',
     per_page: 100,
   });
+}
+
+// Repos de organização entram só por opt-in explícito (modal de settings →
+// `ingest_orgs` + `ingest_org_repos`). Lista a org inteira e filtra pelos
+// ligados em vez de buscar repo a repo — 1 chamada paginada por org, e já
+// descarta repo ligado que foi deletado/renomeado sem quebrar a run.
+async function fetchOptedInOrgRepos(): Promise<GithubRepo[]> {
+  const [orgs, optedIn] = await Promise.all([getIngestOrgs(), getIngestOrgRepos()]);
+  if (!orgs.length || !optedIn.length) return [];
+
+  const optedInLower = new Set(optedIn.map((r) => r.toLowerCase()));
+  const result: GithubRepo[] = [];
+  for (const org of orgs) {
+    try {
+      const repos = await octokit.paginate(octokit.rest.repos.listForOrg, { org, type: 'all', per_page: 100 });
+      result.push(...repos.filter((r) => optedInLower.has(r.full_name.toLowerCase())));
+    } catch (err) {
+      console.warn(`Falha ao listar repos da organização ${org}:`, (err as Error).message);
+    }
+  }
+  return result;
+}
+
+function isOwnRepo(fullName: string): boolean {
+  return repoOwner(fullName) === GH_USERNAME!.toLowerCase();
+}
+
+// Repo que não é do usuário (org, ou projeto manual apontando pra repo de
+// terceiro) tem commit de outras pessoas — `git log` sem filtro contaria
+// trabalho de colega como atividade sua. Filtra pelos e-mails da conta:
+// noreply do GitHub (sempre derivável, sem scope) + e-mails verificados
+// (precisa de scope `user`/`user:email` no GH_TOKEN; sem ele, só noreply).
+async function fetchAuthorEmails(): Promise<string[]> {
+  const { data: me } = await octokit.rest.users.getAuthenticated();
+  const emails = new Set([`${me.id}+${me.login}@users.noreply.github.com`, `${me.login}@users.noreply.github.com`]);
+  if (me.email) emails.add(me.email);
+
+  try {
+    const { data } = await octokit.rest.users.listEmailsForAuthenticatedUser({ per_page: 100 });
+    for (const e of data) if (e.verified) emails.add(e.email);
+  } catch (err) {
+    console.warn('Não consegui listar os e-mails da conta (falta scope user:email?) — filtro de autor usa só noreply:', (err as Error).message);
+  }
+  return [...emails];
 }
 
 async function fetchRepoReadme(owner: string, repo: string): Promise<string> {
@@ -76,8 +133,8 @@ async function fetchRepoReadme(owner: string, repo: string): Promise<string> {
 // sobrescreve um projeto existente — edição manual no admin nunca se perde.
 // Repos privados nunca entram aqui — o blog é público, não deve expor nome,
 // descrição nem URL de repositório privado.
-async function syncProjectsFromGithub(ownedRepos: Awaited<ReturnType<typeof fetchOwnedRepos>>): Promise<void> {
-  const repos = ownedRepos.filter((r) => !r.private);
+async function syncProjectsFromGithub(githubRepos: GithubRepo[]): Promise<void> {
+  const repos = githubRepos.filter((r) => !r.private);
 
   if (!repos.length) return;
 
@@ -226,23 +283,48 @@ function mirrorDirFor(fullName: string): string {
 // sempre << 100).
 const MIRROR_DEPTH = 100;
 
+// Token vai como header via env (GIT_CONFIG_*), nunca na URL: URL com token
+// fica gravada em texto puro no `config` do mirror e aparece nas mensagens
+// de erro do git. Env também não aparece em `ps` como apareceria com `-c`.
+// Escopado a github.com pra não vazar em redirect pra outro host.
+const GIT_AUTH_ENV = {
+  ...process.env,
+  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+  GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`x-access-token:${GH_TOKEN}`).toString('base64')}`,
+};
+
 async function syncRepoMirror(fullName: string): Promise<string> {
   const dir = mirrorDirFor(fullName);
-  const authedUrl = `https://x-access-token:${GH_TOKEN}@github.com/${fullName}.git`;
+  const url = `https://github.com/${fullName}.git`;
 
   if (existsSync(dir)) {
-    await execFileAsync('git', ['--git-dir', dir, 'fetch', '--depth', String(MIRROR_DEPTH), 'origin', '+refs/heads/*:refs/heads/*']);
+    // Mirrors criados antes desta correção têm o token embutido na URL do
+    // remote — reescreve pra URL limpa antes do fetch.
+    await execFileAsync('git', ['--git-dir', dir, 'remote', 'set-url', 'origin', url]);
+    await execFileAsync('git', ['--git-dir', dir, 'fetch', '--depth', String(MIRROR_DEPTH), 'origin', '+refs/heads/*:refs/heads/*'], { env: GIT_AUTH_ENV });
   } else {
-    await execFileAsync('git', ['clone', '--bare', '--depth', String(MIRROR_DEPTH), authedUrl, dir]);
+    await execFileAsync('git', ['clone', '--bare', '--depth', String(MIRROR_DEPTH), url, dir], { env: GIT_AUTH_ENV });
   }
   return dir;
 }
 
 const GIT_LOG_SEP = '\x1f';
 
-async function fetchCommitsFromGitLog(fullName: string, dir: string, date: string): Promise<NewEvent[]> {
+// `authorEmails` (opcional) restringe aos commits desses autores: vários
+// `--author` viram OR no git; `<email>` com `--fixed-strings` casa o e-mail
+// exato dentro de "Nome <email>", sem regex e sem pegar substring.
+async function fetchCommitsFromGitLog(
+  fullName: string,
+  dir: string,
+  date: string,
+  authorEmails?: string[],
+): Promise<NewEvent[]> {
   const since = `${date}T00:00:00Z`;
   const until = `${date}T23:59:59Z`;
+  const authorArgs = authorEmails?.length
+    ? ['--fixed-strings', '--regexp-ignore-case', ...authorEmails.map((e) => `--author=<${e}>`)]
+    : [];
   const { stdout } = await execFileAsync('git', [
     '--git-dir',
     dir,
@@ -250,6 +332,7 @@ async function fetchCommitsFromGitLog(fullName: string, dir: string, date: strin
     '--all',
     `--since=${since}`,
     `--until=${until}`,
+    ...authorArgs,
     `--pretty=format:%H${GIT_LOG_SEP}%s${GIT_LOG_SEP}%aI${GIT_LOG_SEP}%an`,
   ]);
 
@@ -275,12 +358,16 @@ async function fetchCommitsFromGitLog(fullName: string, dir: string, date: strin
 
 // Troca a Events API (retém ~90 dias, só commit sobrevive dessa troca — issue/PR/release
 // não são mais capturados) por leitura direta de `git log` num mirror bare local.
-async function fetchRecentEvents(repoNames: Set<string>, date: string): Promise<NewEvent[]> {
+async function fetchRecentEvents(repoNames: Set<string>, date: string, authorEmails: string[]): Promise<NewEvent[]> {
   const mapped: NewEvent[][] = [];
   for (const fullName of repoNames) {
+    if (!isOwnRepo(fullName) && !authorEmails.length) {
+      console.warn(`Sem e-mail de autor pra filtrar — pulando ${fullName} (senão entraria commit de todo mundo).`);
+      continue;
+    }
     try {
       const dir = await syncRepoMirror(fullName);
-      mapped.push(await fetchCommitsFromGitLog(fullName, dir, date));
+      mapped.push(await fetchCommitsFromGitLog(fullName, dir, date, isOwnRepo(fullName) ? undefined : authorEmails));
     } catch (err) {
       console.warn(`Falha ao ler git log de ${fullName}:`, (err as Error).message);
     }
@@ -804,8 +891,14 @@ async function main(): Promise<void> {
 
   try {
     const ownedRepos = await fetchOwnedRepos();
-    const publicRepoNames = new Set(ownedRepos.filter((r) => !r.private).map((r) => r.full_name));
-    const repoCreatedAt = new Map(ownedRepos.map((r) => [r.full_name, r.created_at]));
+    const orgRepos = await fetchOptedInOrgRepos();
+    const githubRepos = [...ownedRepos, ...orgRepos];
+    const publicRepoNames = new Set(githubRepos.filter((r) => !r.private).map((r) => r.full_name));
+    const repoCreatedAt = new Map(githubRepos.map((r) => [r.full_name, r.created_at ?? null]));
+
+    // Privado de org: rastreado em source_events, mas nunca mencionado no post
+    // (nem vira projeto — mesma regra dos privados próprios no sync).
+    const privateOrgRepoNames = new Set(orgRepos.filter((r) => r.private).map((r) => r.full_name));
 
     // Repos privados a incluir no ingest e repos a omitir do post (por projeto)
     const { data: projectSettings } = await db
@@ -819,14 +912,17 @@ async function main(): Promise<void> {
         .map((p) => p.repo as string),
     );
 
-    const nonMentionableRepos = new Set(
-      (projectSettings ?? [])
-        .filter((p) => p.mention_allowed === false && p.repo)
-        .map((p) => p.repo as string),
-    );
+    const nonMentionableRepos = new Set([
+      ...(projectSettings ?? []).filter((p) => p.mention_allowed === false && p.repo).map((p) => p.repo as string),
+      ...privateOrgRepoNames,
+    ]);
 
-    const allIngestRepos = new Set([...publicRepoNames, ...privateIngestRepos]);
+    const allIngestRepos = new Set([...publicRepoNames, ...privateIngestRepos, ...privateOrgRepoNames]);
+    const authorEmails = [...allIngestRepos].some((r) => !isOwnRepo(r)) ? await fetchAuthorEmails() : [];
 
+    if (orgRepos.length) {
+      console.log(`Repos de organização no ingest: ${orgRepos.map((r) => r.full_name).join(', ')}`);
+    }
     if (privateIngestRepos.size) {
       console.log(`Repos privados no ingest: ${[...privateIngestRepos].join(', ')}`);
     }
@@ -834,11 +930,11 @@ async function main(): Promise<void> {
       console.log(`Repos omitidos do post: ${[...nonMentionableRepos].join(', ')}`);
     }
 
-    await syncProjectsFromGithub(ownedRepos);
+    await syncProjectsFromGithub(githubRepos);
     await syncProjectLanguages();
     await syncProjectStatus();
 
-    const newEvents = await fetchRecentEvents(allIngestRepos, date);
+    const newEvents = await fetchRecentEvents(allIngestRepos, date, authorEmails);
     const trulyNewAll = await filterTrulyNewEvents(newEvents);
     const mentionableNewEvents = newEvents.filter((e) => !nonMentionableRepos.has(e.repo));
     const trulyNewMentionable = trulyNewAll.filter((e) => !nonMentionableRepos.has(e.repo));
