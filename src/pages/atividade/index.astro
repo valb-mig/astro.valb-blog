@@ -23,16 +23,25 @@ const repoFilter = Astro.url.searchParams.get('repo') ?? '';
 const from = (page - 1) * PAGE_SIZE;
 const to = from + PAGE_SIZE - 1;
 
+// Visitante só vê evento linkado a um post (`post_events`) — o ingest só
+// linka evento mencionável, então commit de repo privado de org ou com
+// "mencionar" desligado fica rastreado em `source_events` mas não aparece aqui.
+// Admin continua vendo tudo.
+const EVENT_COLUMNS = 'id,type,repo,url,title,occurred_at';
+const eventColumns: string = isAdmin ? EVENT_COLUMNS : `${EVENT_COLUMNS},post_events!inner(post_id)`;
 let eventsQuery = db
   .from('source_events')
-  .select('id,type,repo,url,title,occurred_at', { count: 'exact' })
+  .select(eventColumns, { count: 'exact' })
   .order('occurred_at', { ascending: false })
   .range(from, to);
 if (isAdmin && repoFilter) eventsQuery = eventsQuery.eq('repo', repoFilter);
 
-const { data, count } = await eventsQuery;
+const { data, count } = await eventsQuery.overrideTypes<
+  Pick<SourceEvent, 'id' | 'type' | 'repo' | 'url' | 'title' | 'occurred_at'>[],
+  { merge: false }
+>();
 
-const events = (data ?? []) as Pick<SourceEvent, 'id' | 'type' | 'repo' | 'url' | 'title' | 'occurred_at'>[];
+const events = data ?? [];
 const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
 
 let repoOptions: { value: string; label: string }[] = [];
