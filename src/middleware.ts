@@ -1,34 +1,21 @@
 import { defineMiddleware } from 'astro:middleware';
-import { verifySession, SESSION_COOKIE } from './lib/auth';
-import { getSetting } from './lib/settings';
+import { app } from './app';
+import { cookie } from './core/auth/service';
 
-const MAINTENANCE_BYPASS = ['/manutencao'];
-
-function isMaintenanceBypassed(path: string): boolean {
-  return (
-    path.startsWith('/admin') ||
-    path.startsWith('/api') ||
-    path === '/rss.xml' ||
-    MAINTENANCE_BYPASS.includes(path)
-  );
-}
+const open = (path: string) =>
+  path.startsWith('/admin') || path.startsWith('/api') || path === '/rss.xml' || path === '/manutencao';
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const path = ctx.url.pathname;
-  const token = ctx.cookies.get(SESSION_COOKIE)?.value ?? '';
-  const isAdmin = !!verifySession(token);
-  ctx.locals.isAdmin = isAdmin;
+  const admin = app.auth.verify(ctx.cookies.get(cookie)?.value);
+  ctx.locals.admin = admin;
 
   if (path.startsWith('/admin')) {
     if (path === '/admin/login') return next();
-    if (!isAdmin) return ctx.redirect('/admin/login');
-    return next();
+    return admin ? next() : ctx.redirect('/admin/login');
   }
 
-  if (!isAdmin && !isMaintenanceBypassed(path)) {
-    const maintenanceMode = await getSetting('maintenance_mode');
-    if (maintenanceMode === 'true') return ctx.rewrite('/manutencao');
-  }
+  if (!admin && !open(path) && (await app.settings.maintenance())) return ctx.rewrite('/manutencao');
 
   return next();
 });

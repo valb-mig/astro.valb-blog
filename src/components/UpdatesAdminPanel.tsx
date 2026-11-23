@@ -6,21 +6,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
-
-type Update = {
-  id: string;
-  message: string;
-  source: 'manual' | 'auto';
-  kind: string | null;
-  ref_url: string | null;
-  created_at: string;
-};
+import type { Update } from '@/core/update/update';
 
 export function UpdatesAdminPanel() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [refUrl, setRefUrl] = useState('');
+  const [url, setUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = () => {
@@ -47,11 +39,11 @@ export function UpdatesAdminPanel() {
     const res = await fetch('/api/updates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: message.trim(), ref_url: refUrl.trim() || null }),
+      body: JSON.stringify({ message: message.trim(), url: url.trim() || null }),
     });
     if (res.ok) {
       setMessage('');
-      setRefUrl('');
+      setUrl('');
       toast.success('Novidade publicada.');
       load();
     } else {
@@ -82,8 +74,8 @@ export function UpdatesAdminPanel() {
           <Label htmlFor="update-ref-url">link (opcional)</Label>
           <Input
             id="update-ref-url"
-            value={refUrl}
-            onChange={(e) => setRefUrl((e.target as HTMLInputElement).value)}
+            value={url}
+            onChange={(e) => setUrl((e.target as HTMLInputElement).value)}
             placeholder="/posts/algum-slug"
           />
         </div>
@@ -102,12 +94,12 @@ export function UpdatesAdminPanel() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant={u.source === 'auto' ? 'secondary' : 'default'}>{u.source}</Badge>
                   {u.kind && <span>{u.kind}</span>}
-                  <span>{new Date(u.created_at).toLocaleString('pt-BR')}</span>
+                  <span>{new Date(u.createdAt).toLocaleString('pt-BR')}</span>
                 </div>
                 <p className="text-sm">{u.message}</p>
-                {u.ref_url && (
-                  <a href={u.ref_url} className="text-xs text-muted-foreground hover:underline">
-                    {u.ref_url}
+                {u.url && (
+                  <a href={u.url} className="text-xs text-muted-foreground hover:underline">
+                    {u.url}
                   </a>
                 )}
               </div>

@@ -3,6 +3,6 @@
 
 declare namespace App {
   interface Locals {
-    isAdmin: boolean;
+    admin: boolean;
   }
 }

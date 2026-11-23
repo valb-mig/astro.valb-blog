@@ -5,17 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ChevronRight, Lock, X } from 'lucide-react';
+import type { Repo } from '@/core/ingest/hub';
+import type { Overview } from '@/core/ingest/orgs';
 
-type OrgRepo = {
-  repo: string;
-  name: string;
-  private: boolean;
-  archived: boolean;
-  pushed_at: string | null;
-  enabled: boolean;
-};
-
-type OrgsResponse = { configured: string[]; suggestions: string[]; tokenMissing: boolean };
+type OrgRepo = Repo & { enabled: boolean };
 
 async function errorMessage(res: Response, fallback: string): Promise<string> {
   const { error } = await res.json().catch(() => ({ error: null }));
@@ -84,12 +77,10 @@ function OrgRepoList({ org, enqueue }: { org: string; enqueue: (task: () => Prom
 }
 
 export function OrgIngestPanel() {
-  const [data, setData] = useState<OrgsResponse | null>(null);
+  const [data, setData] = useState<Overview | null>(null);
   const [input, setInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  // Toggles de repo rodam em fila — cada POST faz read-modify-write da lista
-  // inteira no servidor, então dois em paralelo poderiam se sobrescrever.
   const queue = useRef<Promise<void>>(Promise.resolve());
 
   const enqueue = (task: () => Promise<void>) => {
@@ -99,7 +90,7 @@ export function OrgIngestPanel() {
   useEffect(() => {
     fetch('/api/ingest/orgs')
       .then((res) => res.json())
-      .then((d: OrgsResponse) => setData(d))
+      .then((d: Overview) => setData(d))
       .catch(() => toast.error('Erro ao carregar organizações'));
   }, []);
 

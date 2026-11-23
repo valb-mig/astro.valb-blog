@@ -3,72 +3,13 @@ import Base from '../layouts/Base.astro';
 import { Icon } from 'astro-icon/components';
 import { StackConfigDialog } from '@/components/StackConfigDialog';
 import StatusCard from '../components/StatusCard.astro';
-import { db } from '../lib/db';
+import { app } from '@/app';
 import { iconName, faviconUrl } from '../lib/icons';
-import type { StackSection, StackItem, Project } from '../lib/db';
 
-const isAdmin = Astro.locals.isAdmin;
+const admin = Astro.locals.admin;
 
-let statusQuery = db
-  .from('projects')
-  .select(
-    'id,slug,title,languages,draft,repo,ci_status,latest_release,latest_release_at,uptime_url,last_status_code,last_uptime_check_at,deploy_status,deploy_status_at',
-  )
-  .order('title', { ascending: true });
-if (!isAdmin) statusQuery = statusQuery.eq('draft', false);
-
-const [{ data: sections }, { data: statusData }] = await Promise.all([
-  db
-    .from('stack_sections')
-    .select('*, stack_items(*)')
-    .order('order_index', { ascending: true })
-    .order('order_index', { ascending: true, referencedTable: 'stack_items' }),
-  statusQuery,
-]);
-
-const stackSections = (sections ?? []) as (StackSection & { stack_items: StackItem[] })[];
-type StatusProject = Pick<
-  Project,
-  | 'id'
-  | 'slug'
-  | 'title'
-  | 'languages'
-  | 'draft'
-  | 'repo'
-  | 'ci_status'
-  | 'latest_release'
-  | 'latest_release_at'
-  | 'uptime_url'
-  | 'last_status_code'
-  | 'last_uptime_check_at'
-  | 'deploy_status'
-  | 'deploy_status_at'
->;
-const allStatusProjects = (statusData ?? []) as StatusProject[];
-const statusProjects = allStatusProjects.filter(
-  (p) => p.ci_status != null || p.latest_release != null || p.uptime_url != null || p.deploy_status != null,
-);
-const hasWebLink = (p: StatusProject) => (p.deploy_status as { url?: string } | null)?.url != null || p.uptime_url != null;
-const webStatusProjects = statusProjects.filter(hasWebLink);
-const CI_ORDER: Record<string, number> = { success: 0, in_progress: 1, queued: 1 };
-const ciRank = (p: StatusProject) => CI_ORDER[p.ci_status ?? ''] ?? (p.ci_status ? 2 : 3);
-const ciStatusProjects = statusProjects.filter((p) => !hasWebLink(p)).sort((a, b) => ciRank(a) - ciRank(b));
-
-// Última atividade por repo (sem coluna dedicada em `projects` — reaproveita
-// source_events, mesma fonte que já alimenta /atividade).
-const statusRepos = [...new Set(statusProjects.filter((p) => p.repo).map((p) => p.repo as string))];
-const lastCommitByRepo: Record<string, string> = {};
-if (statusRepos.length) {
-  const results = await Promise.all(
-    statusRepos.map((repo) =>
-      db.from('source_events').select('occurred_at').eq('repo', repo).order('occurred_at', { ascending: false }).limit(1).maybeSingle(),
-    ),
-  );
-  statusRepos.forEach((repo, i) => {
-    const occurredAt = results[i].data?.occurred_at;
-    if (occurredAt) lastCommitByRepo[repo] = occurredAt;
-  });
-}
+const [sections, board] = await Promise.all([app.stack.sections(), app.projects.board(admin)]);
+const tracked = board.web.length + board.ci.length;
 ---
 
 <Base title="About — valb" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'About' }]}>
@@ -103,56 +44,54 @@ if (statusRepos.length) {
         </p>
       </div>
 
-      {(stackSections.length > 0 || isAdmin) && (
+      {(sections.length > 0 || admin) && (
         <div class="fade-in flex flex-col gap-8">
           <div class="flex items-center justify-between gap-4">
             <h2 class="text-lg font-semibold">Ferramentas</h2>
-            {isAdmin && <StackConfigDialog client:load />}
+            {admin && <StackConfigDialog client:load />}
           </div>
-          {stackSections.map((section) => (
+          {sections.map((section) => (
             <div>
               <h3 class="mb-3 text-sm font-medium text-muted-foreground">{section.title}</h3>
               <div class="flex flex-wrap gap-2">
-                {(section.stack_items ?? [])
-                  .sort((a, b) => a.order_index - b.order_index)
-                  .map((item) => {
-                    const icon = item.icon ? (
-                      <Icon
-                        name={iconName(item.icon)}
-                        width={16}
-                        height={16}
-                        class="shrink-0"
-                        style={item.icon_color ? `color:${item.icon_color}` : undefined}
-                      />
-                    ) : item.url ? (
-                      <img
-                        src={faviconUrl(item.url)}
-                        alt=""
-                        width={16}
-                        height={16}
-                        loading="lazy"
-                        decoding="async"
-                        fetchpriority="low"
-                        class="size-4 shrink-0"
-                      />
-                    ) : null;
-                    return item.url ? (
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener"
-                        class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
-                      >
-                        {icon}
-                        {item.label}
-                      </a>
-                    ) : (
-                      <span class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground">
-                        {icon}
-                        {item.label}
-                      </span>
-                    );
-                  })}
+                {section.items.map((item) => {
+                  const icon = item.icon ? (
+                    <Icon
+                      name={iconName(item.icon)}
+                      width={16}
+                      height={16}
+                      class="shrink-0"
+                      style={item.color ? `color:${item.color}` : undefined}
+                    />
+                  ) : item.url ? (
+                    <img
+                      src={faviconUrl(item.url)}
+                      alt=""
+                      width={16}
+                      height={16}
+                      loading="lazy"
+                      decoding="async"
+                      fetchpriority="low"
+                      class="size-4 shrink-0"
+                    />
+                  ) : null;
+                  return item.url ? (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener"
+                      class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
+                    >
+                      {icon}
+                      {item.label}
+                    </a>
+                  ) : (
+                    <span class="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground">
+                      {icon}
+                      {item.label}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -160,34 +99,22 @@ if (statusRepos.length) {
       )}
     </div>
 
-    {(statusProjects.length > 0 || isAdmin) && (
+    {(tracked > 0 || admin) && (
       <div id="status" class="fade-in mt-16 scroll-mt-20">
         <h2 class="mb-1 text-2xl font-semibold">Status dos sistemas</h2>
         <p class="mb-6 text-sm text-muted-foreground">estado atual dos projetos — CI, versão, atividade, uptime.</p>
 
-        {statusProjects.length > 0 ? (
+        {tracked > 0 ? (
           <div class="flex flex-col gap-10">
-            {webStatusProjects.length > 0 && (
+            {board.web.length > 0 && (
               <div>
                 <h3 class="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Com site</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {webStatusProjects.map((p, i) => (
+                  {board.web.map((card, i) => (
                     <StatusCard
-                      title={p.title}
-                      slug={p.slug}
-                      repo={p.repo}
-                      languages={p.languages}
-                      draft={p.draft}
-                      ciStatus={p.ci_status}
-                      latestRelease={p.latest_release}
-                      latestReleaseAt={p.latest_release_at}
-                      uptimeUrl={p.uptime_url}
-                      lastStatusCode={p.last_status_code}
-                      lastUptimeCheckAt={p.last_uptime_check_at}
-                      deployStatus={p.deploy_status}
-                      deployStatusAt={p.deploy_status_at}
-                      lastCommitAt={p.repo ? lastCommitByRepo[p.repo] : null}
-                      isAdmin={isAdmin}
+                      card={card}
+                      last={card.repo ? board.last[card.repo] : null}
+                      admin={admin}
                       delay={i * 60}
                     />
                   ))}
@@ -195,27 +122,15 @@ if (statusRepos.length) {
               </div>
             )}
 
-            {ciStatusProjects.length > 0 && (
+            {board.ci.length > 0 && (
               <div>
                 <h3 class="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">Backend / CI</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {ciStatusProjects.map((p, i) => (
+                  {board.ci.map((card, i) => (
                     <StatusCard
-                      title={p.title}
-                      slug={p.slug}
-                      repo={p.repo}
-                      languages={p.languages}
-                      draft={p.draft}
-                      ciStatus={p.ci_status}
-                      latestRelease={p.latest_release}
-                      latestReleaseAt={p.latest_release_at}
-                      uptimeUrl={p.uptime_url}
-                      lastStatusCode={p.last_status_code}
-                      lastUptimeCheckAt={p.last_uptime_check_at}
-                      deployStatus={p.deploy_status}
-                      deployStatusAt={p.deploy_status_at}
-                      lastCommitAt={p.repo ? lastCommitByRepo[p.repo] : null}
-                      isAdmin={isAdmin}
+                      card={card}
+                      last={card.repo ? board.last[card.repo] : null}
+                      admin={admin}
                       delay={i * 60}
                     />
                   ))}

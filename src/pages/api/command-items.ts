@@ -1,34 +1,23 @@
-import type { APIRoute } from 'astro';
-import { db } from '../../lib/db';
+import { app } from '@/app';
+import { json, route } from '@/app/http';
 
-export const GET: APIRoute = async () => {
-  const [postsRes, projectsRes] = await Promise.all([
-    db.from('posts').select('slug,title,description,tags').eq('draft', false).order('date', { ascending: false }),
-    db.from('projects').select('slug,title,description,status').eq('draft', false).order('date', { ascending: false }),
+const nav = [
+  { type: 'nav', title: 'Home', subtitle: '/', href: '/' },
+  { type: 'nav', title: 'Posts', subtitle: 'todos os posts', href: '/posts' },
+  { type: 'nav', title: 'Projects', subtitle: 'projetos', href: '/projects' },
+  { type: 'nav', title: 'About', subtitle: 'sobre mim', href: '/about' },
+  { type: 'nav', title: 'RSS Feed', subtitle: '/rss.xml', href: '/rss.xml' },
+  { type: 'action', title: 'Copiar URL', subtitle: 'copia a URL atual', action: 'copy-url' },
+] as const;
+
+export const GET = route(async () => {
+  const [posts, projects] = await Promise.all([
+    app.posts.list({ drafts: false }),
+    app.projects.list({ drafts: false }),
   ]);
-
-  const items = [
-    ...(postsRes.data ?? []).map((p) => ({
-      type: 'post' as const,
-      title: p.title,
-      subtitle: p.description ?? '',
-      href: `/posts/${p.slug}`,
-    })),
-    ...(projectsRes.data ?? []).map((p) => ({
-      type: 'project' as const,
-      title: p.title,
-      subtitle: p.description ?? '',
-      href: `/projects/${p.slug}`,
-    })),
-    { type: 'nav' as const, title: 'Home', subtitle: '/', href: '/' },
-    { type: 'nav' as const, title: 'Posts', subtitle: 'todos os posts', href: '/posts' },
-    { type: 'nav' as const, title: 'Projects', subtitle: 'projetos', href: '/projects' },
-    { type: 'nav' as const, title: 'About', subtitle: 'sobre mim', href: '/about' },
-    { type: 'nav' as const, title: 'RSS Feed', subtitle: '/rss.xml', href: '/rss.xml' },
-    { type: 'action' as const, title: 'Copiar URL', subtitle: 'copia a URL atual', action: 'copy-url' },
-  ];
-
-  return new Response(JSON.stringify(items), {
-    headers: { 'Content-Type': 'application/json' },
-  });
-};
+  return json([
+    ...posts.map((p) => ({ type: 'post', title: p.title, subtitle: p.description, href: `/posts/${p.slug}` })),
+    ...projects.map((p) => ({ type: 'project', title: p.title, subtitle: p.description, href: `/projects/${p.slug}` })),
+    ...nav,
+  ]);
+});

@@ -7,37 +7,24 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
-import { db } from '../../../lib/db';
-import type { Post } from '../../../lib/db';
+import { app } from '@/app';
 
-const { id } = Astro.params;
-const { data: post, error } = await db.from('posts').select('*').eq('id', id!).single();
+const post = await app.posts.find({ id: Astro.params.id! }, true);
 
-if (error || !post) return Astro.redirect('/posts');
+if (!post) return Astro.redirect('/posts');
 
-const p = post as Post;
-const dateStr = new Date(p.date).toISOString().split('T')[0];
+const [posts, projects] = await Promise.all([app.posts.list({ drafts: true }), app.projects.list({ drafts: true })]);
 
-const { data: allPosts } = await db.from('posts').select('tags');
-const existingTags = Array.from(new Set((allPosts ?? []).flatMap((post) => post.tags ?? [])))
-  .sort()
-  .map((t) => ({ value: t, label: t }));
-
-const { data: allProjects } = await db.from('projects').select('id,title').order('title');
-const projectOptions = (allProjects ?? []).map((pr) => ({ value: pr.id, label: pr.title }));
-
-const { data: links } = await db.from('post_projects').select('project_id').eq('post_id', p.id);
-const currentProjectIds = (links ?? []).map((l) => l.project_id);
-
-const { data: linkedProjectRepos } = currentProjectIds.length
-  ? await db.from('projects').select('repo').in('id', currentProjectIds).not('repo', 'is', null)
-  : { data: [] };
-const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as string))];
+const dateStr = new Date(post.date).toISOString().split('T')[0];
+const tags = [...new Set(posts.flatMap((p) => p.tags))].sort().map((t) => ({ value: t, label: t }));
+const options = projects.map((p) => ({ value: p.id, label: p.title })).sort((a, b) => a.label.localeCompare(b.label));
+const linked = post.projects.map((p) => p.id);
+const repos = [...new Set(projects.flatMap((p) => (p.repo && linked.includes(p.id) ? [p.repo] : [])))];
 ---
 
 <Base
-  title={`Editar: ${p.title}`}
-  breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Posts', href: '/posts' }, { label: p.slug, href: `/posts/${p.slug}` }, { label: 'editar' }]}
+  title={`Editar: ${post.title}`}
+  breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Posts', href: '/posts' }, { label: post.slug, href: `/posts/${post.slug}` }, { label: 'editar' }]}
 >
   <div class="mx-auto max-w-3xl px-6 py-16">
   <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
@@ -45,22 +32,22 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
   </div>
 
   <form id="post-form" class="flex flex-col gap-6">
-    <input type="hidden" id="post-id" value={p.id} />
+    <input type="hidden" id="post-id" value={post.id} />
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div class="flex flex-col gap-1.5">
         <Label htmlFor="f-title">título *</Label>
-        <Input id="f-title" type="text" required value={p.title} />
+        <Input id="f-title" type="text" required value={post.title} />
       </div>
       <div class="flex flex-col gap-1.5">
         <Label htmlFor="f-slug">slug *</Label>
-        <Input id="f-slug" type="text" required value={p.slug} />
+        <Input id="f-slug" type="text" required value={post.slug} />
       </div>
     </div>
 
     <div class="flex flex-col gap-1.5">
       <Label htmlFor="f-description">descrição *</Label>
-      <Input id="f-description" type="text" required value={p.description} />
+      <Input id="f-description" type="text" required value={post.description} />
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -70,12 +57,12 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
       </div>
       <div class="flex flex-col gap-1.5">
         <Label>tags</Label>
-        <input type="hidden" id="f-tags-value" value={JSON.stringify(p.tags ?? [])} />
+        <input type="hidden" id="f-tags-value" value={JSON.stringify(post.tags)} />
         <MultiSelect
           client:load
           hiddenInputId="f-tags-value"
-          initialValue={p.tags ?? []}
-          options={existingTags}
+          initialValue={post.tags}
+          options={tags}
           creatable
           placeholder="buscar ou criar tag..."
           triggerLabel="tag"
@@ -83,12 +70,12 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
       </div>
       <div class="flex flex-col gap-1.5">
         <Label>projetos</Label>
-        <input type="hidden" id="f-projects-value" value={JSON.stringify(currentProjectIds)} />
+        <input type="hidden" id="f-projects-value" value={JSON.stringify(linked)} />
         <MultiSelect
           client:load
           hiddenInputId="f-projects-value"
-          initialValue={currentProjectIds}
-          options={projectOptions}
+          initialValue={linked}
+          options={options}
           placeholder="buscar projeto..."
           triggerLabel="projeto"
         />
@@ -97,22 +84,22 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
 
     <div class="flex gap-6">
       <div class="flex items-center gap-2.5">
-        <input type="hidden" id="f-draft" value={String(p.draft)} />
-        <SwitchField client:load hiddenInputId="f-draft" initialChecked={p.draft} />
+        <input type="hidden" id="f-draft" value={String(post.draft)} />
+        <SwitchField client:load hiddenInputId="f-draft" initialChecked={post.draft} />
         <Label htmlFor="f-draft">draft</Label>
       </div>
     </div>
 
     <div class="flex flex-col gap-1.5">
       <Label>conteúdo (markdown)</Label>
-      <MarkdownEditor name="content" initialValue={p.content} repos={repos} />
+      <MarkdownEditor name="content" initialValue={post.content} repos={repos} />
     </div>
 
     <div class="flex flex-wrap items-center gap-4 pt-2">
       <Button type="submit" id="save-btn">salvar alterações</Button>
-      <a href={`/posts/${p.slug}`} class="text-sm text-muted-foreground hover:text-foreground">voltar ao post</a>
+      <a href={`/posts/${post.slug}`} class="text-sm text-muted-foreground hover:text-foreground">voltar ao post</a>
       <div class="ml-auto">
-        <DeleteButton id={p.id} title={p.title} resource="posts" redirectTo="/posts" client:load />
+        <DeleteButton id={post.id} title={post.title} resource="posts" redirectTo="/posts" client:load />
       </div>
     </div>
   </form>
@@ -122,7 +109,7 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
 <script>
   import { toast } from 'sonner';
 
-  const postId = (document.getElementById('post-id') as HTMLInputElement).value;
+  const id = (document.getElementById('post-id') as HTMLInputElement).value;
   const form = document.getElementById('post-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
 
@@ -132,7 +119,7 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
     saveBtn.textContent = 'salvando...';
 
     const tags = JSON.parse((document.getElementById('f-tags-value') as HTMLInputElement).value || '[]');
-    const projectIds = JSON.parse((document.getElementById('f-projects-value') as HTMLInputElement).value || '[]');
+    const projects = JSON.parse((document.getElementById('f-projects-value') as HTMLInputElement).value || '[]');
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -141,11 +128,11 @@ const repos = [...new Set((linkedProjectRepos ?? []).map((pr) => pr.repo as stri
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       tags,
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
-      projectIds,
+      projects,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
 
-    const res = await fetch(`/api/posts/${postId}`, {
+    const res = await fetch(`/api/posts/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

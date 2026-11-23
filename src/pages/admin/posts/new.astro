@@ -6,15 +6,12 @@ import { SwitchField } from '@/components/SwitchField';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { db } from '../../../lib/db';
+import { app } from '@/app';
 
-const { data: allPosts } = await db.from('posts').select('tags');
-const existingTags = Array.from(new Set((allPosts ?? []).flatMap((p) => p.tags ?? [])))
-  .sort()
-  .map((t) => ({ value: t, label: t }));
+const [posts, projects] = await Promise.all([app.posts.list({ drafts: true }), app.projects.list({ drafts: true })]);
 
-const { data: allProjects } = await db.from('projects').select('id,title').order('title');
-const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.title }));
+const tags = [...new Set(posts.flatMap((p) => p.tags))].sort().map((t) => ({ value: t, label: t }));
+const options = projects.map((p) => ({ value: p.id, label: p.title })).sort((a, b) => a.label.localeCompare(b.label));
 ---
 
 <Base title="Novo Post" breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Posts', href: '/posts' }, { label: 'novo' }]}>
@@ -50,7 +47,7 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
           client:load
           hiddenInputId="f-tags-value"
           initialValue={[]}
-          options={existingTags}
+          options={tags}
           creatable
           placeholder="buscar ou criar tag..."
           triggerLabel="tag"
@@ -63,7 +60,7 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
           client:load
           hiddenInputId="f-projects-value"
           initialValue={[]}
-          options={projectOptions}
+          options={options}
           placeholder="buscar projeto..."
           triggerLabel="projeto"
         />
@@ -92,18 +89,19 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
 </Base>
 
 <script>
-  // Auto-fill today's date
+  import { toast } from 'sonner';
+  import { flashToast } from '../../../lib/toast';
+
   const dateInput = document.getElementById('f-date') as HTMLInputElement;
   dateInput.value = new Date().toISOString().split('T')[0];
 
-  // Auto-generate slug from title
   const titleInput = document.getElementById('f-title') as HTMLInputElement;
   const slugInput = document.getElementById('f-slug') as HTMLInputElement;
-  let slugTouched = false;
+  let touched = false;
 
-  slugInput.addEventListener('input', () => { slugTouched = true; });
+  slugInput.addEventListener('input', () => { touched = true; });
   titleInput.addEventListener('input', () => {
-    if (!slugTouched) {
+    if (!touched) {
       slugInput.value = titleInput.value
         .toLowerCase()
         .normalize('NFD')
@@ -115,10 +113,6 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
     }
   });
 
-  // Form submit
-  import { toast } from 'sonner';
-  import { flashToast } from '../../../lib/toast';
-
   const form = document.getElementById('post-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
 
@@ -128,7 +122,7 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
     saveBtn.textContent = 'salvando...';
 
     const tags = JSON.parse((document.getElementById('f-tags-value') as HTMLInputElement).value || '[]');
-    const projectIds = JSON.parse((document.getElementById('f-projects-value') as HTMLInputElement).value || '[]');
+    const projects = JSON.parse((document.getElementById('f-projects-value') as HTMLInputElement).value || '[]');
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -137,7 +131,7 @@ const projectOptions = (allProjects ?? []).map((p) => ({ value: p.id, label: p.t
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       tags,
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
-      projectIds,
+      projects,
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };
 

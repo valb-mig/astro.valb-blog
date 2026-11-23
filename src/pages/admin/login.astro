@@ -1,5 +1,4 @@
 ---
-import { verifySession, SESSION_COOKIE } from '../../lib/auth';
 import '../../styles/global.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -7,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
 
-const token = Astro.cookies.get(SESSION_COOKIE)?.value ?? '';
-if (verifySession(token)) return Astro.redirect('/');
+if (Astro.locals.admin) return Astro.redirect('/');
 ---
 
 <!doctype html>

@@ -7,7 +7,7 @@ import BottomNav from '../components/BottomNav.astro';
 import UpdatesBanner from '../components/UpdatesBanner.astro';
 import { CommandMenu } from '../components/CommandMenu';
 import { Toaster } from '@/components/ui/sonner';
-import { db } from '../lib/db';
+import { app } from '@/app';
 
 interface Props {
   title: string;
@@ -26,16 +26,11 @@ const {
   breadcrumb,
 } = Astro.props;
 
-const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const canonical = new URL(Astro.url.pathname, Astro.site);
 
-const { data: latestUpdate } = await db
-  .from('updates')
-  .select('id,message,ref_url')
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
+const update = await app.updates.latest();
 
-const isAdmin = Astro.locals.isAdmin;
+const admin = Astro.locals.admin;
 ---
 
 <!doctype html>
@@ -43,19 +38,17 @@ const isAdmin = Astro.locals.isAdmin;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="canonical" href={canonicalURL} />
+    <link rel="canonical" href={canonical} />
 
     <title>~/{title}</title>
     <meta name="description" content={description} />
 
-    <!-- Open Graph -->
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content={og.type ?? 'website'} />
-    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:url" content={canonical} />
     {og.image && <meta property="og:image" content={og.image} />}
 
-    <!-- RSS feed -->
     <link
       rel="alternate"
       type="application/rss+xml"
@@ -67,14 +60,14 @@ const isAdmin = Astro.locals.isAdmin;
     <link rel="icon" type="image/png" href="/favico.png" />
   </head>
   <body class="flex min-h-screen flex-col pb-16 md:pb-0">
-    {isAdmin && (
+    {admin && (
       <div
         class="pointer-events-none fixed inset-0 z-[100] border-4 border-yellow-400/90"
         aria-hidden="true"
       />
     )}
     <Toaster client:load />
-    {latestUpdate && <UpdatesBanner update={latestUpdate} />}
+    {update && <UpdatesBanner update={update} />}
     <Header />
     {breadcrumb && (
       <div class="border-b border-border">
@@ -96,7 +89,6 @@ const isAdmin = Astro.locals.isAdmin;
     </script>
 
     <script>
-      // Client-side syntax highlighting for rendered markdown
       import hljs from 'highlight.js';
       import 'highlight.js/styles/github-dark.css';
       document.querySelectorAll('pre code').forEach((el) => {
@@ -105,7 +97,6 @@ const isAdmin = Astro.locals.isAdmin;
     </script>
 
     <script>
-      // Scroll-triggered fade-in via IntersectionObserver
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((e) => {

@@ -13,7 +13,7 @@ const navItems = [
 ];
 
 const current = Astro.url.pathname;
-const isAdmin = Astro.locals.isAdmin;
+const admin = Astro.locals.admin;
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
@@ -25,11 +25,11 @@ const isAdmin = Astro.locals.isAdmin;
         aria-label="Navegação principal"
       >
         {navItems.map(({ label, href }) => {
-          const isActive = current === href || current.startsWith(href + '/');
+          const active = current === href || current.startsWith(href + '/');
           return (
             <a
               href={href}
-              class={`shrink-0 transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              class={`shrink-0 transition-colors ${active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {label}
             </a>
@@ -62,9 +62,9 @@ const isAdmin = Astro.locals.isAdmin;
 
       <NotificationBell client:load />
 
-      {isAdmin && <UpdatesConfigDialog client:load />}
+      {admin && <UpdatesConfigDialog client:load />}
 
-      {isAdmin ? (
+      {admin ? (
         <SettingsDialog client:load />
       ) : (
         <Button variant="ghost" size="icon" asChild>
@@ -74,7 +74,7 @@ const isAdmin = Astro.locals.isAdmin;
         </Button>
       )}
 
-      {isAdmin && (
+      {admin && (
         <Button
           id="header-logout-btn"
           variant="ghost"

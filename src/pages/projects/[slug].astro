@@ -6,35 +6,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
-import { db } from '../../lib/db';
-import type { Project, Post } from '../../lib/db';
+import { app } from '@/app';
+import type { Status } from '@/core/project/project';
 import { renderMarkdown } from '../../lib/markdown';
 
-const { slug } = Astro.params;
-const isAdmin = Astro.locals.isAdmin;
+const admin = Astro.locals.admin;
 
-let projectQuery = db.from('projects').select('*').eq('slug', slug!);
-if (!isAdmin) projectQuery = projectQuery.eq('draft', false);
-const { data: project, error } = await projectQuery.single();
+const p = await app.projects.find({ slug: Astro.params.slug! }, admin);
 
-if (error || !project) return Astro.redirect('/projects');
+if (!p) return Astro.redirect('/projects');
 
-const p = project as Project;
-const contentHtml = await renderMarkdown(p.content);
+const [html, posts] = await Promise.all([
+  renderMarkdown(p.content),
+  app.posts.list({ drafts: false, projects: [p.id] }),
+]);
 const repoUrl = p.repo ? `https://github.com/${p.repo}` : null;
 
-const { data: linkedPostRows } = await db
-  .from('post_projects')
-  .select('posts!inner(id,slug,title,description,date,tags,reading_time,draft)')
-  .eq('project_id', p.id)
-  .eq('posts.draft', false);
-
-type LinkedPostRow = { posts: Pick<Post, 'id'|'slug'|'title'|'description'|'date'|'tags'|'reading_time'> };
-const linkedPosts = ((linkedPostRows ?? []) as unknown as LinkedPostRow[])
-  .map((row) => row.posts)
-  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-const statusVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
+const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
   completed: 'secondary',
   archived: 'outline',
@@ -60,7 +48,7 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
     <div class="max-w-2xl">
 
       <header class="mb-10 border-b border-border pb-8">
-        {isAdmin && (
+        {admin && (
           <div class="mb-4 flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
             {p.draft && <Badge variant="outline">draft</Badge>}
             <span class="text-muted-foreground">visão admin</span>
@@ -79,7 +67,7 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
         <p class="mb-5 text-muted-foreground">{p.description}</p>
 
         <div class="flex flex-wrap items-center gap-3 text-sm">
-          <Badge variant={statusVariant[p.status]}>{p.status}</Badge>
+          <Badge variant={variant[p.status]}>{p.status}</Badge>
           <span class="text-muted-foreground">{dateStr}</span>
           {repoUrl && (
             <a href={repoUrl} target="_blank" rel="noopener" class="text-muted-foreground transition-colors hover:text-foreground">
@@ -88,9 +76,9 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
           )}
         </div>
 
-        {(p.tags ?? []).length > 0 && (
+        {p.tags.length > 0 && (
           <div class="mt-4 flex flex-wrap gap-2">
-            {(p.tags ?? []).map((tag: string) => <Badge variant="outline">{tag}</Badge>)}
+            {p.tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
           </div>
         )}
 
@@ -100,24 +88,15 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
       </header>
 
       {p.content && (
-        <div class="prose prose-invert prose-sm mb-16 max-w-none" set:html={contentHtml} />
+        <div class="prose prose-invert prose-sm mb-16 max-w-none" set:html={html} />
       )}
 
       <section id="posts" class="md:hidden">
         <h2 class="mb-6 text-lg font-semibold">Posts sobre esse projeto</h2>
-        {linkedPosts.length > 0 ? (
+        {posts.length > 0 ? (
           <div class="grid grid-cols-1 gap-4">
-            {linkedPosts.map((post, i) => (
-              <PostCard
-                id={post.id}
-                slug={post.slug}
-                title={post.title}
-                description={post.description}
-                date={post.date}
-                tags={post.tags}
-                reading_time={post.reading_time}
-                delay={i * 60}
-              />
+            {posts.map((post, i) => (
+              <PostCard post={{ ...post, projects: [] }} delay={i * 60} />
             ))}
           </div>
         ) : (
@@ -135,9 +114,9 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
     <aside class="hidden md:block">
       <div class="sticky top-24 flex flex-col gap-3">
         <p class="text-sm font-medium text-muted-foreground">posts sobre esse projeto</p>
-        {linkedPosts.length > 0 ? (
+        {posts.length > 0 ? (
           <ul class="flex flex-col gap-2">
-            {linkedPosts.map((post) => (
+            {posts.map((post) => (
               <li>
                 <a
                   href={`/posts/${post.slug}`}

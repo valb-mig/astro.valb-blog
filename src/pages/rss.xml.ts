@@ -1,19 +1,14 @@
 import rss from '@astrojs/rss';
-import { db } from '../lib/db';
-import type { Post } from '../lib/db';
+import type { APIContext } from 'astro';
+import { app } from '@/app';
 
-export async function GET(context: { site: URL }) {
-  const { data: posts } = await db
-    .from('posts')
-    .select('slug,title,description,date,tags')
-    .eq('draft', false)
-    .order('date', { ascending: false });
-
+export async function GET(context: APIContext) {
+  const posts = await app.posts.list({ drafts: false });
   return rss({
     title: '~/posts',
     description: 'Posts pessoais sobre dev e o que aparecer.',
-    site: context.site,
-    items: (posts ?? []).map((post: Pick<Post, 'slug'|'title'|'description'|'date'|'tags'>) => ({
+    site: context.site!,
+    items: posts.map((post) => ({
       title: post.title,
       description: post.description,
       pubDate: new Date(post.date),

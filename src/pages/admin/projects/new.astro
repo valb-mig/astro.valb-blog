@@ -120,9 +120,9 @@ const statusOptions = [
     saveBtn.disabled = true;
     saveBtn.textContent = 'salvando...';
 
-    const tagsRaw = (document.getElementById('f-tags') as HTMLInputElement).value;
-    const repoVal = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
-    const uptimeUrlVal = (document.getElementById('f-uptime-url') as HTMLInputElement).value.trim();
+    const tags = (document.getElementById('f-tags') as HTMLInputElement).value;
+    const repo = (document.getElementById('f-repo') as HTMLInputElement).value.trim();
+    const uptime = (document.getElementById('f-uptime-url') as HTMLInputElement).value.trim();
 
     const payload = {
       title: (document.getElementById('f-title') as HTMLInputElement).value,
@@ -130,11 +130,11 @@ const statusOptions = [
       description: (document.getElementById('f-description') as HTMLInputElement).value,
       date: new Date((document.getElementById('f-date') as HTMLInputElement).value).toISOString(),
       status: (document.getElementById('f-status') as HTMLInputElement).value,
-      tags: tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean),
-      repo: repoVal || null,
-      uptime_url: uptimeUrlVal || null,
-      ingest_private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
-      mention_allowed: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
+      tags: tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+      repo: repo || null,
+      uptimeUrl: uptime || null,
+      private: (document.getElementById('f-ingest-private') as HTMLInputElement).value === 'true',
+      mention: (document.getElementById('f-mention-allowed') as HTMLInputElement).value === 'true',
       draft: (document.getElementById('f-draft') as HTMLInputElement).value === 'true',
       content: (document.getElementById('md-content-value') as HTMLTextAreaElement).value,
     };

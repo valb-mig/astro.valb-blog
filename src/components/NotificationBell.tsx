@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { Update } from '@/core/update/update';
 
-type Update = {
-  id: string;
-  message: string;
-  ref_url: string | null;
-  created_at: string;
-};
-
-const PAGE_SIZE = 20;
+const size = 20;
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -24,11 +18,11 @@ export function NotificationBell() {
     if (loading || !hasMore) return;
     setLoading(true);
     const last = items[items.length - 1];
-    const url = last ? `/api/updates?before=${encodeURIComponent(last.created_at)}` : '/api/updates';
+    const url = last ? `/api/updates?before=${encodeURIComponent(last.createdAt)}` : '/api/updates';
     const res = await fetch(url);
     const data: Update[] = await res.json();
     setItems((prev) => [...prev, ...data]);
-    setHasMore(data.length === PAGE_SIZE);
+    setHasMore(data.length === size);
     setLoading(false);
   };
 
@@ -74,15 +68,15 @@ export function NotificationBell() {
             )}
             {items.map((item) => (
               <div key={item.id} className="border-b border-border/60 px-3 py-2.5 text-sm last:border-0">
-                {item.ref_url ? (
-                  <a href={item.ref_url} className="hover:underline">
+                {item.url ? (
+                  <a href={item.url} className="hover:underline">
                     {item.message}
                   </a>
                 ) : (
                   item.message
                 )}
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {new Date(item.created_at).toLocaleString('pt-BR')}
+                  {new Date(item.createdAt).toLocaleString('pt-BR')}
                 </p>
               </div>
             ))}

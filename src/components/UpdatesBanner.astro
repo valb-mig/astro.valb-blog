@@ -1,6 +1,8 @@
 ---
+import type { Update } from '@/core/update/update';
+
 interface Props {
-  update: { id: string; message: string; ref_url: string | null };
+  update: Pick<Update, 'id' | 'message' | 'url'>;
 }
 const { update } = Astro.props;
 ---
@@ -11,8 +13,8 @@ const { update } = Astro.props;
   class="flex items-center justify-center gap-3 border-b border-border bg-foreground/5 px-4 py-2 text-sm"
 >
   <span class="truncate">
-    {update.ref_url ? (
-      <a href={update.ref_url} class="underline-offset-2 hover:underline">{update.message}</a>
+    {update.url ? (
+      <a href={update.url} class="underline-offset-2 hover:underline">{update.message}</a>
     ) : (
       update.message
     )}

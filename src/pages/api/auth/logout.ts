@@ -1,9 +1,7 @@
-import type { APIRoute } from 'astro';
-import { SESSION_COOKIE } from '../../../lib/auth';
+import { json, route } from '@/app/http';
+import { cookie } from '@/core/auth/service';
 
-export const POST: APIRoute = async ({ cookies }) => {
-  cookies.delete(SESSION_COOKIE, { path: '/' });
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
-};
+export const POST = route(({ cookies }) => {
+  cookies.delete(cookie, { path: '/' });
+  return json({ ok: true });
+});

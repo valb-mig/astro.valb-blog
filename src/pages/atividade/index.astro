@@ -4,70 +4,29 @@ import ActivityItem from '../../components/ActivityItem.astro';
 import ActivityHeatmap from '../../components/ActivityHeatmap.astro';
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/SelectField';
-import { db } from '../../lib/db';
-import type { SourceEvent } from '../../lib/db';
+import { app } from '@/app';
 
-const isAdmin = Astro.locals.isAdmin;
+const admin = Astro.locals.admin;
 
-// Posts de atividade seguem sempre o slug `atividade-YYYY-MM-DD` (scripts/ingest.ts) —
-// mais confiável que agregar `source_events`, já que dia com fallback Wakatime
-// gera post sem nenhum source_event associado.
-let heatmapQuery = db.from('posts').select('slug,draft').like('slug', 'atividade-%');
-if (!isAdmin) heatmapQuery = heatmapQuery.eq('draft', false);
-const { data: heatmapPosts } = await heatmapQuery;
-const activeDays = new Set((heatmapPosts ?? []).map((p) => p.slug.replace('atividade-', '')));
-
-const PAGE_SIZE = 40;
 const page = Math.max(1, parseInt(Astro.url.searchParams.get('page') ?? '1', 10) || 1);
-const repoFilter = Astro.url.searchParams.get('repo') ?? '';
-const from = (page - 1) * PAGE_SIZE;
-const to = from + PAGE_SIZE - 1;
+const repo = Astro.url.searchParams.get('repo') ?? '';
 
-// Visitante só vê evento linkado a um post (`post_events`) — o ingest só
-// linka evento mencionável, então commit de repo privado de org ou com
-// "mencionar" desligado fica rastreado em `source_events` mas não aparece aqui.
-// Admin continua vendo tudo.
-const EVENT_COLUMNS = 'id,type,repo,url,title,occurred_at';
-const eventColumns: string = isAdmin ? EVENT_COLUMNS : `${EVENT_COLUMNS},post_events!inner(post_id)`;
-let eventsQuery = db
-  .from('source_events')
-  .select(eventColumns, { count: 'exact' })
-  .order('occurred_at', { ascending: false })
-  .range(from, to);
-if (isAdmin && repoFilter) eventsQuery = eventsQuery.eq('repo', repoFilter);
+const [days, feed, repos] = await Promise.all([
+  app.posts.days(admin),
+  app.events.feed(page, admin, repo),
+  admin ? app.projects.repos() : [],
+]);
 
-const { data, count } = await eventsQuery.overrideTypes<
-  Pick<SourceEvent, 'id' | 'type' | 'repo' | 'url' | 'title' | 'occurred_at'>[],
-  { merge: false }
->();
+const options = [
+  { value: '__all__', label: 'todos os repos' },
+  ...[...new Set(repos.flatMap((r) => (r.repo ? [r.repo] : [])))].map((r) => ({ value: r, label: r })),
+];
 
-const events = data ?? [];
-const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
-
-let repoOptions: { value: string; label: string }[] = [];
-if (isAdmin) {
-  const { data: projectRepos } = await db.from('projects').select('repo').not('repo', 'is', null).order('repo');
-  const repos = [...new Set((projectRepos ?? []).map((p) => p.repo as string))];
-  repoOptions = [{ value: '__all__', label: 'todos os repos' }, ...repos.map((repo) => ({ value: repo, label: repo }))];
+function href(p: number): string {
+  return `?page=${p}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}`;
 }
 
-function pageHref(p: number): string {
-  return `?page=${p}${repoFilter ? `&repo=${encodeURIComponent(repoFilter)}` : ''}`;
-}
-
-// Agrupamento por dia calendário UTC — mesma convenção do slug atividade-YYYY-MM-DD no ingest.
-const groups: { day: string; events: typeof events }[] = [];
-for (const event of events) {
-  const day = event.occurred_at.slice(0, 10);
-  const lastGroup = groups[groups.length - 1];
-  if (lastGroup?.day === day) {
-    lastGroup.events.push(event);
-  } else {
-    groups.push({ day, events: [event] });
-  }
-}
-
-function formatDay(day: string): string {
+function format(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString('pt-BR', {
     weekday: 'long',
     day: 'numeric',
@@ -85,32 +44,32 @@ function formatDay(day: string): string {
         <h1 class="text-2xl font-semibold">Atividade</h1>
         <p class="mt-1 text-sm text-muted-foreground">commits, issues, PRs e releases recentes.</p>
       </div>
-      {isAdmin && (
+      {admin && (
         <form method="GET" class="shrink-0">
-          <input type="hidden" name="repo" id="repo-filter" value={repoFilter} />
+          <input type="hidden" name="repo" id="repo-filter" value={repo} />
           <SelectField
             client:load
             hiddenInputId="repo-filter"
-            initialValue={repoFilter || '__all__'}
-            options={repoOptions}
+            initialValue={repo || '__all__'}
+            options={options}
             className="w-48"
           />
         </form>
       )}
     </div>
 
-    <ActivityHeatmap activeDays={activeDays} class="mb-10" />
+    <ActivityHeatmap activeDays={days} class="mb-10" />
 
-    {groups.length > 0 ? (
+    {feed.days.length > 0 ? (
       <div class="flex flex-col gap-8">
-        {groups.map((group) => (
+        {feed.days.map((group) => (
           <section>
             <h2 class="mb-2 text-sm font-medium capitalize text-muted-foreground">
-              {formatDay(group.day)}
+              {format(group.day)}
             </h2>
             <div class="flex flex-col">
               {group.events.map((event, i) => (
-                <ActivityItem event={event as SourceEvent} isAdmin={isAdmin} delay={i * 20} />
+                <ActivityItem event={event} admin={admin} delay={i * 20} />
               ))}
             </div>
           </section>
@@ -120,21 +79,21 @@ function formatDay(day: string): string {
       <p class="mt-8 text-sm text-muted-foreground">nenhuma atividade encontrada.</p>
     )}
 
-    {totalPages > 1 && (
+    {feed.pages > 1 && (
       <div class="mt-10 flex items-center justify-between border-t border-border pt-6">
         <Button variant="outline" size="sm" disabled={page <= 1} asChild={page > 1}>
-          {page > 1 ? <a href={pageHref(page - 1)}>← anterior</a> : <span>← anterior</span>}
+          {page > 1 ? <a href={href(page - 1)}>← anterior</a> : <span>← anterior</span>}
         </Button>
-        <span class="text-xs text-muted-foreground">página {page} de {totalPages}</span>
-        <Button variant="outline" size="sm" disabled={page >= totalPages} asChild={page < totalPages}>
-          {page < totalPages ? <a href={pageHref(page + 1)}>próxima →</a> : <span>próxima →</span>}
+        <span class="text-xs text-muted-foreground">página {page} de {feed.pages}</span>
+        <Button variant="outline" size="sm" disabled={page >= feed.pages} asChild={page < feed.pages}>
+          {page < feed.pages ? <a href={href(page + 1)}>próxima →</a> : <span>próxima →</span>}
         </Button>
       </div>
     )}
   </div>
 </Base>
 
-{isAdmin && (
+{admin && (
   <script>
     document.addEventListener('row-deleted', (e) => {
       const { id } = (e as CustomEvent).detail;

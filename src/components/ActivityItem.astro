@@ -2,26 +2,26 @@
 import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
 import { GitCommitHorizontal, GitPullRequest, CircleDot, Tag as TagIcon } from 'lucide-react';
-import type { SourceEvent } from '../lib/db';
+import type { Item, Type } from '@/core/event/event';
 
 interface Props {
-  event: SourceEvent;
-  isAdmin?: boolean;
+  event: Item;
+  admin?: boolean;
   delay?: number;
 }
 
-const { event, isAdmin = false, delay = 0 } = Astro.props;
+const { event, admin = false, delay = 0 } = Astro.props;
 
-const typeMeta: Record<SourceEvent['type'], { label: string; icon: typeof GitCommitHorizontal }> = {
+const meta: { [t in Type]: { label: string; icon: typeof GitCommitHorizontal } } = {
   commit: { label: 'commit', icon: GitCommitHorizontal },
   issue: { label: 'issue', icon: CircleDot },
   pull_request: { label: 'pull request', icon: GitPullRequest },
   release: { label: 'release', icon: TagIcon },
 };
 
-const { label, icon: Icon } = typeMeta[event.type];
+const { label, icon: Icon } = meta[event.type];
 
-const timeStr = new Date(event.occurred_at).toLocaleTimeString('pt-BR', {
+const timeStr = new Date(event.at).toLocaleTimeString('pt-BR', {
   hour: '2-digit',
   minute: '2-digit',
 });
@@ -44,7 +44,7 @@ const timeStr = new Date(event.occurred_at).toLocaleTimeString('pt-BR', {
     </div>
   </a>
 
-  {isAdmin && (
+  {admin && (
     <div class="shrink-0">
       <DeleteButton id={event.id} title={event.title} resource="events" label="" client:load />
     </div>
