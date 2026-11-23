@@ -1,14 +1,14 @@
 ---
-import { getWakatimeStats } from '../lib/wakatime';
+import { app } from '@/app';
 
-const stats = await getWakatimeStats();
+const stats = await app.time.week();
 ---
 
 {stats && (
   <div class="flex flex-col gap-3 rounded-lg border border-border p-4">
     <div class="flex items-center justify-between text-sm">
       <span class="text-muted-foreground">últimos 7 dias codificando</span>
-      <span class="font-medium">{stats.totalText}</span>
+      <span class="font-medium">{stats.total}</span>
     </div>
     <div class="flex flex-col gap-1.5">
       {stats.languages.map((lang) => (
