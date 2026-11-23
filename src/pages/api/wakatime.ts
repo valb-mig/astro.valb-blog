@@ -1,8 +1,7 @@
-import type { APIRoute } from 'astro';
-import { getWakatimeStats } from '../../lib/wakatime';
+import { app } from '@/app';
+import { json, route } from '@/app/http';
 
-export const GET: APIRoute = async () => {
-  const stats = await getWakatimeStats();
-  if (!stats) return new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 });
-  return new Response(JSON.stringify(stats), { headers: { 'Content-Type': 'application/json' } });
-};
+export const GET = route(async () => {
+  const week = await app.time.week();
+  return week ? json(week) : json({ error: 'unavailable' }, 503);
+});

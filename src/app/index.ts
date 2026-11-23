@@ -13,7 +13,6 @@ import { Service as Updates } from '@/core/update/service';
 import { equal, Hmac } from '@/infra/crypto';
 import { Dispatch } from '@/infra/github/dispatch';
 import { Hub } from '@/infra/github/hub';
-import { connect } from '@/infra/supabase/client';
 import { Events as EventRows } from '@/infra/supabase/events';
 import { Posts as PostRows } from '@/infra/supabase/posts';
 import { Projects as ProjectRows } from '@/infra/supabase/projects';
@@ -22,9 +21,9 @@ import { Runs } from '@/infra/supabase/runs';
 import { Settings as SettingRows } from '@/infra/supabase/settings';
 import { Stack as StackRows } from '@/infra/supabase/stack';
 import { Updates as UpdateRows } from '@/infra/supabase/updates';
+import { Wakatime } from '@/infra/wakatime';
+import { db } from './db';
 import { env } from './env';
-
-const db = connect(env('SUPABASE_URL') as string, env('SUPABASE_SERVICE_ROLE_KEY') as string);
 
 const secret = () => {
   const s = env('SESSION_SECRET');
@@ -62,6 +61,7 @@ export const app = {
         ? new Dispatch(dispatch, repo).run()
         : Promise.reject(new Fault('config', 'GH_DISPATCH_TOKEN ou GH_REPO não configurados')),
   },
+  time: new Wakatime(env('WAKATIME_API_KEY')),
   llm: { groq: !!env('GROQ_API_KEY'), gemini: !!env('GEMINI_API_KEY') },
   salt: env('REACTION_SALT') ?? 'default-reaction-salt',
 };

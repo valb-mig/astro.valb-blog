@@ -166,6 +166,26 @@ comentário foram pra cá:
 - `src/components/MarkdownEditor.astro`: o `<textarea id="md-content-value">` escondido fica sincronizado com o CodeMirror; é dele que os formulários de post/projeto leem o conteúdo na hora de salvar.
 - `src/components/ReactionBar.tsx`: quando o POST de reação falha (inclusive 429 do rate-limit), a atualização otimista de contagem/estado é revertida.
 
+Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.ts`
++ `sync.ts`, adapters em `src/infra/{github,git,llm,supabase}` e
+`src/infra/{probe,wakatime}.ts`, wiring em `src/app/ingest.ts`). Porquês:
+
+- `src/infra/github/source.ts`: plugins `throttling` + `retry` do Octokit respeitam `Retry-After` em rate limit primário/secundário em vez de matar a run inteira num 403/429.
+- `src/core/ingest/run.ts` (`orgRepos`): lista a org inteira e filtra pelos repos ligados, em vez de buscar repo a repo — 1 chamada paginada por org, e repo ligado que foi deletado/renomeado some sem quebrar a run.
+- `src/core/ingest/run.ts` (`collect`) + `src/infra/github/source.ts` (`emails`): repo que não é do `GH_USERNAME` passa por filtro de autor; e-mails = noreply do GitHub (sempre derivável) + verificados (precisa scope `user:email` no `GH_TOKEN`; sem ele, só noreply). Sem nenhum e-mail o repo é pulado — senão entraria commit de todo mundo.
+- `src/infra/git/log.ts`: vários `--author=<email>` viram OR no git; `<email>` com `--fixed-strings` casa o e-mail exato dentro de "Nome <email>", sem regex nem substring.
+- `src/infra/git/log.ts`: token vai como header via `GIT_CONFIG_*` (escopado a github.com), nunca na URL — URL com token fica gravada no `config` do mirror e aparece em erro do git; env também não aparece em `ps` como `-c` apareceria. Mirror antigo com token na URL é reescrito (`remote set-url`) antes do fetch.
+- `src/core/ingest/sync.ts` (`projects`): cria projeto só pra repo público sem registro; nunca sobrescreve existente (edição no admin sobrevive). Privado nunca vira projeto — o blog é público, não expõe nome/descrição/URL de repo privado.
+- `src/core/ingest/sync.ts` (`languages`, `health`): falha por projeto (repo renomeado/deletado, API fora) só loga e segue; uptime vale pra qualquer projeto com `uptime_url`, tenha repo ou não (cobre backend fora do GitHub). `src/infra/probe.ts` tem timeout de 5s pra não travar a run.
+- `src/infra/supabase/ledger.ts` (`known`) + `run.ts`: o subconjunto de eventos novos é calculado consultando antes do upsert — `upsert(..., { ignoreDuplicates: true }).select()` não devolve de forma determinística só as linhas inseridas (varia por versão do PostgREST), o que fazia o log mentir e podia reconstruir o post à toa num rerun.
+- `src/core/ingest/group.ts` (`dedupe`): commit "Merge pull request #N" é descartado quando existe o evento de PR merged correspondente — senão a mesma ação conta duas vezes.
+- `src/core/ingest/run.ts` (`narratives`): repo "novo" = `created_at` do GitHub igual ao dia, não ausência de histórico em `source_events` (num backfill todo repo pareceria novo). Descrição do GitHub só é buscada pros novos (baixo volume) e costuma carregar o porquê do projeto.
+- `src/core/ingest/run.ts` (`narratives`): 1 chamada pedindo JSON com todos os repos em vez de 1 por repo (não repete o system prompt N vezes); JSON malformado degrada pra post sem parágrafo por repo.
+- `src/core/ingest/run.ts` (`rebuild`): conteúdo sempre reconstruído a partir de TODOS os eventos linkados ao post do dia, não só os da run — segunda run no mesmo dia não perde o que já tinha; links post↔projeto são substituídos a cada rebuild.
+- `src/core/ingest/run.ts` (`time`): sem evento mencionável no dia (mesmo havendo commit em repo omitido) cai pro tempo de código do Wakatime; dia com menos de 5 min é ignorado (IDE aberto sem uso real).
+- `scripts/ingest.ts`: trigger do `ingest_runs` vem de `GITHUB_EVENT_NAME` (`schedule`/`workflow_dispatch` no Actions), senão `local`.
+- `src/core/llm/pick.ts` + `fallback.ts`: Gemini que falha (API, rate limit) cai pra Groq se `GROQ_API_KEY` existir e `llm_fallback_enabled` não for `false`; `fellBack` vai pro `ingest_runs.llm_fallback_used`.
+
 ## Decisões importantes
 
 - **SSR + Supabase em vez de content collections** — usuário queria
