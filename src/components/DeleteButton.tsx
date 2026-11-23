@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { flashToast } from "@/lib/toast";
+import { flash } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -19,7 +19,6 @@ interface Props {
   id: string;
   title: string;
   resource: "posts" | "projects" | "events" | "updates";
-  /** Se definido, redireciona após deletar. Caso contrário, dispara "row-deleted" no document. */
   redirectTo?: string;
   label?: string;
 }
@@ -33,7 +32,7 @@ export function DeleteButton({ id, title, resource, redirectTo, label = "deletar
     const res = await fetch(`/api/${resource}/${id}`, { method: "DELETE" });
     if (res.ok) {
       if (redirectTo) {
-        flashToast("success", `"${title}" deletado.`);
+        flash("success", `"${title}" deletado.`);
         window.location.href = redirectTo;
       } else {
         toast.success(`"${title}" deletado.`);

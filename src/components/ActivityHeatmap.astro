@@ -13,7 +13,7 @@ const totalDays = weeks * 7;
 
 const start = new Date(todayUTC);
 start.setUTCDate(start.getUTCDate() - (totalDays - 1));
-start.setUTCDate(start.getUTCDate() - start.getUTCDay()); // volta pro domingo, pra alinhar as colunas em semanas completas
+start.setUTCDate(start.getUTCDate() - start.getUTCDay());
 
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);

@@ -74,7 +74,7 @@ export default function ProjectGraph({ nodes, links, tags }: Props) {
 
   const filterActive = query.trim().length > 0 || activeTags.length > 0;
 
-  const matchedProjectIds = useMemo(() => {
+  const matched = useMemo(() => {
     if (!filterActive) return null;
     const q = query.trim().toLowerCase();
     const ids = new Set<string>();
@@ -88,13 +88,13 @@ export default function ProjectGraph({ nodes, links, tags }: Props) {
   }, [nodes, query, activeTags, filterActive]);
 
   const highlightedIds = useMemo(() => {
-    if (!matchedProjectIds) return null;
-    const ids = new Set(matchedProjectIds);
-    for (const id of matchedProjectIds) {
+    if (!matched) return null;
+    const ids = new Set(matched);
+    for (const id of matched) {
       for (const neighbor of neighborsOf.get(id) ?? []) ids.add(neighbor);
     }
     return ids;
-  }, [matchedProjectIds, neighborsOf]);
+  }, [matched, neighborsOf]);
 
   const hoverSet = useMemo(() => {
     if (!hoverId) return null;

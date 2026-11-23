@@ -2,105 +2,105 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-For deeper context on decisions, pending work, and rationale, see `.claude/CONTEXT.md` and `.claude/TODO.md` — read those before starting non-trivial work here.
+For deeper context on decisions, pending work, and rationale, see `.claude/CONTEXT.md` and `.claude/TODO.md` — read those before starting non-trivial work here. Every "why" that used to live in code comments is in `.claude/CONTEXT.md`.
 
 ## Commands
 
 ```bash
 pnpm dev              # dev server at localhost:4321
+pnpm check            # astro check (typecheck)
+pnpm test             # vitest — core services with in-memory fakes, no Supabase
 pnpm build            # SSR build → dist/ (Vercel adapter)
 pnpm preview          # preview built output
 pnpm ingest:local      # run the GitHub→LLM→Supabase ingest pipeline locally (reads .env)
-pnpm ingest:local -- --force              # force-rebuild today's activity post even with no new events
+pnpm ingest:local -- --force              # force-rebuild the day's activity post even with no new events
 pnpm ingest:local -- --date=YYYY-MM-DD    # run the pipeline for a past date instead of today
 ```
 
-No test suite, no linter configured.
+CI (`.github/workflows/check.yml`) runs `check`, `test` and `build` on every PR and push to `main`. No linter configured.
+
+## Code standards
+
+- **Layers** — `src/core` (entities, ports, services; never imports Astro, Supabase, Octokit or any SDK), `src/infra` (adapters implementing core ports; the only place that knows the DB's snake_case), `src/app` (composition root `app.*` + HTTP helpers). Pages and API routes are thin adapters over `app.*` — never call `db.from(...)` outside `src/infra/supabase`.
+- **No comments** in code (TS, Astro, CSS, YAML). A non-obvious "why" goes to `.claude/CONTEXT.md`. The only exception is the `///` directives Astro needs in `src/env.d.ts`.
+- **English, short names** in code — meaning comes from the folder (`core/post/service.ts` exports `Service`, `infra/supabase/posts.ts` exports `Posts`). UI copy, LLM prompts and public URLs (`/atividade`, `/manutencao`) stay pt-BR.
+- **Entities are camelCase** everywhere above infra, including API JSON payloads (`readingTime`, `projects`, `sectionId`, `createdAt`…). React islands may `import type` from `@/core/...`, never from `@/app` or `@/infra`.
+- **Errors** — services throw `Fault` (`src/core/error.ts`, codes `invalid|denied|missing|limited|upstream|config`); `route()` in `src/app/http.ts` maps them to HTTP status and handles the admin check (`route(fn, true)`).
+- **Tests** — new core logic gets a vitest test with fakes from `src/test/` (`memory.ts` for CMS ports, `ingest.ts` for ingest ports).
 
 ## Architecture
 
-SSR Astro 5 blog/mini-CMS backed by Supabase (`output: 'server'`, `@astrojs/vercel`). Not static — posts and projects are edited live through `/admin`, and a GitHub Actions cron ingests daily commit activity into an auto-generated "atividade" blog post.
+SSR Astro 5 blog/mini-CMS backed by Supabase (`output: 'server'`, `@astrojs/vercel`). Not static — posts and projects are edited live through the admin, and a GitHub Actions cron ingests daily commit activity into an auto-generated "atividade" blog post.
 
-### Data (Supabase, `src/lib/db.ts`)
+```
+src/core/    post, project, event, stack, update, reaction, setting, auth, run, time, llm, ingest, stats
+src/infra/   supabase/*, github/{hub,dispatch,source}, git/log, llm/{groq,gemini}, wakatime, probe, crypto, icons
+src/app/     index.ts (app.*), db.ts, env.ts, http.ts, ingest.ts
+src/lib/     UI-only helpers: icons, toast, markdown, utils (shadcn)
+```
+
+### Data (Supabase, mapped in `src/infra/supabase/*`)
 
 - **posts** — `title`, `description`, `content` (markdown), `date`, `tags: string[]`, `draft`, `reading_time`
-- **projects** — `title`, `description`, `content` (GitHub README when synced), `date`, `tags`, `status: 'active'|'completed'|'archived'`, `repo` (`owner/name`, nullable — non-GitHub personal projects are supported), `languages` (jsonb, `{lang: percent}`, refreshed daily by ingest), `draft`, `parent_project_id`
+- **projects** — `title`, `description`, `content` (GitHub README when synced), `date`, `tags`, `status: 'active'|'completed'|'archived'`, `repo` (`owner/name`, nullable — non-GitHub personal projects are supported), `languages` (jsonb, `{lang: percent}`, refreshed daily by ingest), `draft`, `parent_project_id`, `ingest_private`, `mention_allowed`, status fields (`ci_status`, `latest_release`, `uptime_url`, `last_status_code`, `status_token`, `deploy_status`… → `Project.health` in core)
 - **post_projects** — join `post_id ↔ project_id` (many-to-many)
 - **source_events** — event-sourcing table for GitHub activity: `type: 'commit'|'issue'|'pull_request'|'release'`, `external_id`, `repo`, `url`, `title`, `payload jsonb`, `occurred_at`. Unique `(source, type, external_id, repo)` for dedupe. **As of 2026-07-10, ingest only ever creates `type: 'commit'` rows** (read from local `git log`, not the GitHub Events API) — `issue`/`pull_request`/`release` rows still exist historically but are no longer produced.
 - **post_events** — join `post_id ↔ event_id`, written only by the ingest pipeline
-- **post_reactions** — `post_id, emoji, fingerprint` (unique triple) — anonymous emoji reactions, toggled on/off, deduped by a sha256 hash of IP+UA (`src/lib/reactions.ts`), plus an in-memory rate limit (10 toggles/min per fingerprint)
+- **post_reactions** — `post_id, emoji, fingerprint` (unique triple) — anonymous emoji reactions, toggled on/off, fingerprint = sha256 of IP+UA+salt (`visitor()` in `src/app/http.ts`), plus an in-memory rate limit (10 toggles/min per fingerprint, `src/core/limit.ts`)
+- **stack_sections / stack_items**, **updates**, **settings** (key/value), **ingest_runs**
 
 No SQL migrations are versioned in the repo (`supabase-schema.sql` was removed) — schema changes are applied manually in the Supabase dashboard.
 
 ### Routing
 
-Admin isn't a separate app (as of 2026-07-15) — browsing pages (posts, projects,
-atividade, about) are the same pages a visitor sees, just privilege-aware.
-`Astro.locals.isAdmin` is computed once in `src/middleware.ts` for every
-request (typed in `src/env.d.ts`) and read directly in pages/components —
-no per-page cookie re-verification needed. `layouts/Admin.astro` is gone
-entirely — every page (including the create/edit forms and the login page)
-now shares the same visual language, `Base.astro`. When `isAdmin`, `Base.astro`
-renders a fixed yellow border frame around the whole viewport (VSCode
-debug-mode style, `pointer-events-none`) and the Header shows a yellow logout
-button — the only persistent visual cue that you're in admin mode, since
-otherwise the site looks identical to what a visitor sees. Settings, About,
-and Updates config are all `Dialog` modals opened from the Header/`/about`,
-not pages. The dashboard (stats + ingest trigger) isn't a page either; it
-renders as admin-only boxes on `/` (home). Only `/admin/login` and the
-create/edit forms remain as actual pages under `/admin/*` (forms are a
-genuinely different UI — multi-field + `MarkdownEditor` — not just "more
-data"; login is the one place `isAdmin` is still false).
+Admin isn't a separate app — browsing pages (posts, projects, atividade, about) are the same pages a visitor sees, just privilege-aware. `Astro.locals.admin` is computed once in `src/middleware.ts` for every request (typed in `src/env.d.ts`) and read directly in pages/components and by `route()`. Every page uses `Base.astro`; when `admin`, it renders a fixed yellow border frame around the viewport (VSCode debug-mode style) and the Header shows a yellow logout button — the only persistent cue that you're in admin mode. Settings, About and Updates config are `Dialog` modals; the dashboard (stats + ingest trigger) renders as admin-only boxes on `/`. Only `/admin/login` and the create/edit forms are real pages under `/admin/*`.
 
-| Route | File |
+| Route | File / service |
 |---|---|
-| `/` | `src/pages/index.astro` — admin-only: stats cards + "ingests recentes" + "rodar ingest agora" button |
-| `/posts` | `src/pages/posts/index.astro` — tag filter via `?tag=`; admin sees drafts (badge on `PostCard`) + "+ novo post" |
-| `/posts/[slug]` | `src/pages/posts/[slug].astro` — reactions below content; admin sees an editar/deletar toolbar + draft badge |
-| `/atividade` | `src/pages/atividade/index.astro` — paginated feed of `source_events`, grouped by UTC day; visitors only see events linked to a post (`post_events!inner` — i.e. mentionable ones, so private-org / "mencionar"-off commits stay hidden); admin sees everything + repo filter + delete per event |
-| `/projects`, `/projects/[slug]` | `src/pages/projects/` — language/stack badges per repo; same admin treatment as posts (drafts, edit/delete on `ProjectCard` + detail toolbar, "+ novo projeto") |
-| `/projects/graph` | interactive project↔post graph |
-| `/about` | `src/pages/about.astro` — stack sections/items public; admin sees a "configurar" button opening a `Dialog` with `StackAdminPanel` (no more `/admin/about` page) |
+| `/` | `src/pages/index.astro` — latest posts/projects; admin: `app.stats.get()` + "rodar ingest agora" |
+| `/posts`, `/posts/[slug]` | `app.posts.list/find/related`, reactions via `app.reactions.tally`; admin sees drafts + edit/delete |
+| `/atividade` | `app.events.feed` (visitors only see events linked to a post — mentionable ones), heatmap from `app.posts.days` |
+| `/projects`, `/projects/[slug]`, `/projects/graph` | `app.projects.list/find`, linked posts via `app.posts.list({ projects })` |
+| `/about` | stack (`app.stack.sections`) + project status board (`app.projects.board`, `StatusCard`) |
 | `/rss.xml` | `src/pages/rss.xml.ts` |
-| `/admin/login` | session cookie only |
-| `/admin/posts/new`, `/admin/posts/[id]` | create/edit forms, `Base.astro` layout |
-| `/admin/projects/new`, `/admin/projects/[id]` | same as posts |
-| `/api/posts`, `/api/projects` (+ `[id]`) | CRUD, public GET filters `draft=false`, admin sees all |
-| `/api/reactions` | anonymous, fingerprint-based, toggles a reaction on/off |
-| `/api/events` | admin-only, lists `source_events` for a repo (used by the post editor's "+ evento" embed picker) |
-| `/api/icons/search`, `/api/icons/[slug]` | admin-only, icon search/lookup for the stack-item icon picker (`src/lib/simple-icons.server.ts`, backed by `@iconify-json/simple-icons`) |
-| `/api/updates` (+ `[id]`) | GET public (paginated, `?before=`), POST/DELETE admin-only — backs `UpdatesAdminPanel.tsx` (opened as a modal from the Header, admin-only, no more `/admin/updates` page) |
-| `/api/settings` | GET admin-only (also returns `hasGroqKey`/`hasGeminiKey` booleans, never the actual secrets), POST admin-only upsert — backs `SettingsAdminPanel.tsx` (modal from the Header gear icon, no more `/admin/settings` page) |
-| `/api/ingest/orgs` (GET/POST/DELETE), `/api/ingest/orgs/[org]/repos`, `/api/ingest/org-repos` | admin-only — backs `OrgIngestPanel.tsx` (Settings modal, "organizações no ingest"): add/remove GitHub orgs (validated + canonical login via API), list an org's repos, opt a repo in/out. Stored in `settings` as JSON arrays (`ingest_orgs`, `ingest_org_repos`, `src/lib/ingest-config.ts`). Needs `GH_READ_TOKEN` in the web runtime (`src/lib/github.server.ts`) — never the ingest's `GH_TOKEN` |
-| `/api/wakatime` | proxy + 5min in-memory cache for Wakatime stats — widget lives on the home hero only, not `/posts` |
-| `/api/auth/login`, `/api/auth/logout` | admin session (HMAC-signed cookie, `src/lib/auth.ts`) |
+| `/admin/login`, `/admin/posts/*`, `/admin/projects/*` | login + create/edit forms |
+| `/api/posts`, `/api/projects` (+ `[id]`) | CRUD, public GET hides drafts, admin sees all; bodies are core `Input` + `projects: string[]` for posts |
+| `/api/projects/[id]/status` | external CI reports deploy status with `Authorization: Bearer <status_token>` (`report-status.yml`) |
+| `/api/reactions` | `?post=` / `{ post, emoji }`, anonymous toggle |
+| `/api/events` | admin-only, recent `source_events` for a repo (post editor "+ evento" picker) |
+| `/api/icons/search`, `/api/icons/[slug]` | admin-only, `src/infra/icons.ts` (`@iconify-json/simple-icons`) |
+| `/api/updates` (+ `[id]`), `/api/stack-*`, `/api/settings` | admin panels; settings GET also returns `hasGroqKey`/`hasGeminiKey`, never the secrets |
+| `/api/ingest/orgs`, `/api/ingest/orgs/[org]/repos`, `/api/ingest/org-repos` | org opt-in (`src/core/ingest/orgs.ts`, settings keys `ingest_orgs`/`ingest_org_repos`). Needs `GH_READ_TOKEN` in the web runtime (`src/infra/github/hub.ts`) — never the ingest's `GH_TOKEN` |
+| `/api/admin/ingest-trigger` | dispatches `ingest.yml` (`GH_DISPATCH_TOKEN` + `GH_REPO`) |
+| `/api/wakatime` | `app.time.week()` (5 min in-memory cache) — widget lives on the home hero |
+| `/api/auth/login`, `/api/auth/logout` | admin session (`src/core/auth/service.ts` + HMAC in `src/infra/crypto.ts`) |
 
-### Ingest pipeline (`scripts/ingest.ts` + `.github/workflows/ingest.yml`, daily cron `55 23 * * *` UTC)
+### Ingest pipeline (`scripts/ingest.ts` → `src/app/ingest.ts` → `src/core/ingest/run.ts`)
 
-1. Syncs new GitHub repos into `projects` (never overwrites existing rows — manual admin edits survive reruns). Sources: every repo the user owns (`affiliation: 'owner'`) **plus**, as of 2026-10-09, org repos explicitly opted in via the Settings modal (`fetchOptedInOrgRepos` — only orgs in `ingest_orgs`, only repos in `ingest_org_repos`). Private repos never become projects; private opted-in org repos are tracked in `source_events` but always non-mentionable
-2. Refreshes `projects.languages` for every project with a `repo` set (`octokit.repos.listLanguages`)
-3. For each ingested repo (public owned + opted-in org + `ingest_private` projects): bare-mirrors it into `.ingest-cache/` (`git clone/fetch --depth 100` — **not** `--shallow-since`, which hits a git-client bug against GitHub's smart-HTTP: "error processing shallow info: 4"), then reads `git log` for the target date's commits. Repos not owned by `GH_USERNAME` get an author filter (`--fixed-strings --author=<email>` per email, from `fetchAuthorEmails`: GitHub noreply + verified account emails) so teammates' commits never count as yours
-4. Upserts new `source_events` (dedupe by sha), rebuilds the day's "atividade" post from **all** linked events (not just the new batch) via two LLM calls (day-level paragraph + per-repo JSON paragraph) — provider is pluggable (`src/lib/llm.ts`: Groq or Gemini, auto-falls-back Gemini→Groq on error if `GROQ_API_KEY` is set)
-5. **As of 2026-07-12, if `git log` finds zero commits for the day across every repo**, falls back to Wakatime (`getWakatimeSummaryForDate` in `src/lib/wakatime.ts`, the `summaries` endpoint — not the `stats/last_7_days` one the home widget uses) instead of leaving the day without a post. Same "atividade" post/slug/title, just a narrative built from time-coded + language data instead of commits — skipped entirely if Wakatime has no key configured or logged under 5 minutes that day (`WAKATIME_MIN_SECONDS` in `scripts/ingest.ts`). Requires `WAKATIME_API_KEY` in the ingest env too now (`.github/workflows/ingest.yml`), not just Vercel's.
+`.github/workflows/ingest.yml` runs daily at `0 3 * * *` UTC for the previous UTC day (`--date=yesterday`).
 
-### LLM provider (`src/lib/llm.ts`)
+1. `Sync.projects` — creates a project for each new public GitHub repo (never overwrites existing rows). Sources: repos the user owns **plus** org repos opted in via the Settings modal. Private repos never become projects; private opted-in org repos are tracked in `source_events` but always non-mentionable
+2. `Sync.languages` / `Sync.health` — refreshes `languages`, CI status, latest release and uptime for every tracked project
+3. `Log.commits` (`src/infra/git/log.ts`) — bare mirror in `.ingest-cache/` (`--depth 100`, **not** `--shallow-since`), `git log` for the target day; repos not owned by `GH_USERNAME` get an author filter (noreply + verified account emails)
+4. New `source_events` are saved; the day's "atividade" draft is rebuilt from **all** linked events via two LLM calls (day paragraph + per-repo JSON) — provider picked by `src/core/llm/pick.ts` (settings `llm_provider`, Groq default, Gemini falls back to Groq)
+5. No mentionable commit that day → falls back to Wakatime coding time (`src/infra/wakatime.ts` `day()`, skipped under 5 minutes). Requires `WAKATIME_API_KEY` in the ingest env
 
-`getLlmProvider()` reads a `settings` table row (`llm_provider`, default `groq`) to pick Groq or Gemini. If Gemini is selected and it throws (API error, rate limit, outage), it automatically retries the same call on Groq — silent fallback, only if `GROQ_API_KEY` is present.
+Every run is recorded in `ingest_runs` (`src/infra/supabase/journal.ts`), shown on the home admin box.
 
 ### Post editor (`src/components/MarkdownEditor.astro`)
 
-CodeMirror-based split edit/preview, no upload backend. Toolbar has "+ evento" (only shown when the post has linked projects with a `repo` — opens a dialog listing that repo's `source_events`, inserts a markdown blockquote+link at the cursor) and "+ imagem" (prompts for a URL, no storage bucket exists — external URLs only).
+CodeMirror-based split edit/preview, no upload backend. Toolbar has "+ evento" (only when the post has linked projects with a `repo` — lists that repo's events, inserts a blockquote+link) and "+ imagem" (URL only, no storage bucket).
 
 ### Styling
 
-Tailwind CSS v4 + shadcn/ui (style `radix-nova`, base color `neutral`), tokens in `src/styles/global.css` (`oklch()` colors, single fixed dark theme, no light/dark toggle). Font: **Geist Variable** (`@fontsource-variable/geist`) — not JetBrains Mono. Minimalist/modern aesthetic (Vercel/Next.js-inspired), not the old terminal/CLI look.
+Tailwind CSS v4 + shadcn/ui (style `radix-nova`, base color `neutral`), tokens in `src/styles/global.css` (`oklch()` colors, single fixed dark theme, no light/dark toggle). Font: **Geist Variable**. Minimalist/modern aesthetic (Vercel/Next.js-inspired). `src/components/ui/*` is shadcn-generated — leave it to the CLI.
 
 Scroll animations use `.fade-in` + `.visible` classes triggered by an IntersectionObserver in `Base.astro`.
 
 ### Auth
 
-`src/middleware.ts` blocks any `/admin/*` route without a valid session cookie. Credentials are fixed via env (`ADMIN_USERNAME`/`ADMIN_PASSWORD`), session is a custom HMAC-signed token (`src/lib/auth.ts`), no JWT library, 7-day cookie `maxAge`.
+`src/middleware.ts` sets `locals.admin` and blocks `/admin/*` without a valid session cookie. Credentials are fixed via env (`ADMIN_USERNAME`/`ADMIN_PASSWORD`), session is a custom HMAC-signed token, no JWT library, 7-day cookie `maxAge`, login rate-limited per IP.
 
-### Site URL
+### Deploy
 
-`astro.config.mjs` still has `site: 'https://fake'` — update before deploying to production; canonical URLs and RSS feed depend on it.
+`site` in `astro.config.mjs` is `https://valb-blog.vercel.app` (canonical URLs and RSS depend on it). As of 2026-11-23 the app is temporarily off Vercel and the Supabase project is unreachable; it is meant to return to Vercel, so the adapter stays.

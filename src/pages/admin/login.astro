@@ -45,7 +45,7 @@ if (Astro.locals.admin) return Astro.redirect('/');
 
     <script>
       import { toast } from 'sonner';
-      import { flashToast } from '../../lib/toast';
+      import { flash } from '../../lib/toast';
 
       const form = document.getElementById('login-form')!;
       const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
@@ -65,7 +65,7 @@ if (Astro.locals.admin) return Astro.redirect('/');
         });
 
         if (res.ok) {
-          flashToast('success', 'Login realizado.');
+          flash('success', 'Login realizado.');
           window.location.href = '/';
         } else {
           const { error } = await res.json();

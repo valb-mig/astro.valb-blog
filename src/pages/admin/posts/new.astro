@@ -90,7 +90,7 @@ const options = projects.map((p) => ({ value: p.id, label: p.title })).sort((a, 
 
 <script>
   import { toast } from 'sonner';
-  import { flashToast } from '../../../lib/toast';
+  import { flash } from '../../../lib/toast';
 
   const dateInput = document.getElementById('f-date') as HTMLInputElement;
   dateInput.value = new Date().toISOString().split('T')[0];
@@ -143,7 +143,7 @@ const options = projects.map((p) => ({ value: p.id, label: p.title })).sort((a, 
 
     if (res.ok) {
       const created = await res.json();
-      flashToast('success', 'Post salvo.');
+      flash('success', 'Post salvo.');
       window.location.href = `/posts/${created.slug}`;
     } else {
       const { error } = await res.json();
