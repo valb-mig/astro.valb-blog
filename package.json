@@ -9,7 +9,9 @@
     "preview": "astro preview",
     "astro": "astro",
     "ingest": "tsx scripts/ingest.ts",
-    "ingest:local": "tsx --env-file=.env scripts/ingest.ts"
+    "ingest:local": "tsx --env-file=.env scripts/ingest.ts",
+    "test": "vitest run",
+    "check": "astro check"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
@@ -58,6 +60,7 @@
     "@types/sanitize-html": "^2.16.1",
     "tailwindcss": "^4.3.2",
     "tsx": "^4.23.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }
