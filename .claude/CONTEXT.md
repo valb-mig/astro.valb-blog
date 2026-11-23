@@ -169,6 +169,28 @@ sem cookie de sessão válido. Sessão = HMAC-signed token custom
   do `.env`/Vercel que já tinha pro widget. Nuance: o dia retornado pelo
   Wakatime segue o timezone da conta, não UTC como o resto do pipeline —
   pode desalinhar um pouco perto da virada do dia.
+- **Organizações no ingest, opt-in por repo** (2026-10-09): antes só entrava
+  repo do próprio usuário (`affiliation: 'owner'`). Agora o modal de Settings
+  tem "organizações no ingest" (`OrgIngestPanel.tsx`): adiciona org (validada
+  no GitHub, login canônico salvo), expande, liga repo a repo (desligado por
+  padrão — escolhido em vez de "sync da org inteira" pra não criar dezenas de
+  projetos de repo que o usuário nunca mexeu). Config em `settings` como array
+  JSON (`ingest_orgs`, `ingest_org_repos` — `src/lib/ingest-config.ts`), sem
+  tabela nova. Remover org mantém a seleção de repos salva (inerte; readicionar
+  restaura). No ingest: público ligado vira projeto igual repo próprio;
+  privado ligado é rastreado em `source_events` mas **sempre** não-mencionável
+  e nunca vira projeto. Repo que não é do `GH_USERNAME` passa por filtro de
+  autor no `git log` (`--fixed-strings --author=<email>`, e-mails = noreply do
+  GitHub + verificados da conta via `/user/emails`) — sem isso commit de
+  colega entraria como atividade sua. Painel usa `GH_READ_TOKEN` (classic PAT
+  `read:org` + `repo`; fine-grained não serve, é preso a 1 owner) no runtime
+  da Vercel, separado do `GH_TOKEN` do ingest, que tem escopo amplo demais
+  (admin:org, delete_repo...) pra ir pra Vercel — recomendado ao usuário
+  trocar por um token só-leitura.
+- **`/atividade` público só mostra evento linkado a post** (2026-10-09):
+  antes listava todo `source_events` pra visitante, vazando título de commit
+  de repo privado / com "mencionar" desligado. Agora visitante usa
+  `post_events!inner` (ingest só linka evento mencionável); admin vê tudo.
 - **Post↔Projeto N:N via tabela de junção** (2026-07-08) — em vez de array
   de slugs em `posts.project`, decisão explícita do usuário por
   normalização/query reversa mais fácil ("quais posts citam esse projeto").
