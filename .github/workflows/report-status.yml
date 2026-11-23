@@ -1,20 +1,3 @@
-# Workflow reutilizável (Fase 2 do /status): outros repos chamam isso no
-# próprio deploy/push pra reportar versão/build/env — dado que a API do
-# GitHub não expõe (serviço rodando em staging, hash de build, etc). Exemplo
-# de uso num repo consumidor:
-#
-#   jobs:
-#     report-status:
-#       uses: valb-mig/astro.valb-blog/.github/workflows/report-status.yml@main
-#       with:
-#         site_url: https://SEUDOMINIO
-#         project_id: <uuid da linha em projects>
-#         payload: '{"version":"${{ github.sha }}","env":"production","url":"https://meuprojeto.com"}'
-#       secrets:
-#         status_token: ${{ secrets.STATUS_TOKEN }}
-#
-# status_token vem do botão "gerar novo" no form de edição do projeto
-# (/admin/projects/[id]) — guardar como secret no repo consumidor.
 name: Report Status
 
 on:

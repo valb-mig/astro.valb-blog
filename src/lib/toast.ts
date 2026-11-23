@@ -1,17 +1,17 @@
 import { toast } from 'sonner';
 
-const FLASH_KEY = 'flash-toast';
+const key = 'flash-toast';
 
-type ToastType = 'success' | 'error';
+type Kind = 'success' | 'error';
 
-export function flashToast(type: ToastType, message: string) {
-  sessionStorage.setItem(FLASH_KEY, JSON.stringify({ type, message }));
+export function flash(type: Kind, message: string) {
+  sessionStorage.setItem(key, JSON.stringify({ type, message }));
 }
 
-export function consumeFlashedToast() {
-  const raw = sessionStorage.getItem(FLASH_KEY);
+export function replay() {
+  const raw = sessionStorage.getItem(key);
   if (!raw) return;
-  sessionStorage.removeItem(FLASH_KEY);
-  const { type, message } = JSON.parse(raw) as { type: ToastType; message: string };
+  sessionStorage.removeItem(key);
+  const { type, message } = JSON.parse(raw) as { type: Kind; message: string };
   toast[type](message);
 }

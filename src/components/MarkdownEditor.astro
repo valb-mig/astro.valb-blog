@@ -291,14 +291,14 @@ const { initialValue = '', name = 'content', repos = [] } = Astro.props;
 
   const isDesktop = () => window.innerWidth > 768;
 
-  function syncPanelsForViewport() {
+  function fit() {
     if (!isDesktop()) {
       panelsEl.classList.remove('md-max-edit', 'md-max-preview');
       (panelsEl as HTMLElement).style.gridTemplateColumns = '';
     }
   }
-  syncPanelsForViewport();
-  window.addEventListener('resize', syncPanelsForViewport);
+  fit();
+  window.addEventListener('resize', fit);
 
   const resizer = document.querySelector<HTMLElement>('.md-resizer');
   let lastColumns = '1fr 6px 1fr';

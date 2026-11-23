@@ -110,7 +110,7 @@ const statusOptions = [
   });
 
   import { toast } from 'sonner';
-  import { flashToast } from '../../../lib/toast';
+  import { flash } from '../../../lib/toast';
 
   const form = document.getElementById('proj-form')!;
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
@@ -147,7 +147,7 @@ const statusOptions = [
 
     if (res.ok) {
       const created = await res.json();
-      flashToast('success', 'Projeto salvo.');
+      flash('success', 'Projeto salvo.');
       window.location.href = `/projects/${created.slug}`;
     } else {
       const { error } = await res.json();

@@ -10,7 +10,6 @@
   --radius-xl: 1rem;
 }
 
-/* Tema único, escuro fixo — sem toggle light/dark. */
 :root {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -105,7 +104,6 @@
   }
 }
 
-/* Esconde scrollbar do nav mobile do Header sem esconder a rolagem em si */
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -114,7 +112,6 @@
   display: none;
 }
 
-/* Scroll fade-in usado pelo IntersectionObserver em Base.astro */
 .fade-in {
   opacity: 0;
   transform: translateY(20px);
@@ -125,7 +122,6 @@
   transform: translateY(0);
 }
 
-/* highlight.js: acompanha o card do tema */
 .hljs {
   background: var(--card) !important;
 }

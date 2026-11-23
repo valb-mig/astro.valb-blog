@@ -7,7 +7,7 @@ import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
 import { app } from '@/app';
 import { visitor } from '@/app/http';
-import { renderMarkdown } from '../../lib/markdown';
+import { render } from '../../lib/markdown';
 
 const admin = Astro.locals.admin;
 const post = await app.posts.find({ slug: Astro.params.slug! }, admin);
@@ -15,7 +15,7 @@ const post = await app.posts.find({ slug: Astro.params.slug! }, admin);
 if (!post) return Astro.redirect('/posts');
 
 const [html, related, tally] = await Promise.all([
-  renderMarkdown(post.content),
+  render(post.content),
   app.posts.related(post),
   app.reactions.tally(post.id, visitor(Astro)),
 ]);
