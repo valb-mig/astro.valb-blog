@@ -1,14 +1,19 @@
 ---
+import { cn } from '@/lib/utils';
 import Base from '../../layouts/Base.astro';
 import ProjectCard from '../../components/ProjectCard.astro';
 import ProjectFilters from '../../components/ProjectFilters';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Network, Plus } from 'lucide-react';
 import { app } from '@/app';
 
 const admin = Astro.locals.admin;
 
-const [projects, pins] = await Promise.all([app.projects.list({ drafts: admin }), app.pins.list()]);
+const [projects, pins, seen] = await Promise.all([
+  app.projects.list({ drafts: admin }),
+  app.pins.list(),
+  app.events.seen(admin),
+]);
 
 const tags = [...new Set(projects.flatMap((p) => p.tags))].sort();
 
@@ -30,12 +35,10 @@ const sections = [
       </div>
       <div class="flex items-center gap-3">
         {admin && (
-          <Button asChild size="sm" className="shrink-0">
-            <a href="/admin/projects/new" class="flex items-center gap-1">
-              <Plus size={14} />
-              novo projeto
-            </a>
-          </Button>
+<a href="/admin/projects/new" class={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+            <Plus size={14} />
+            novo projeto
+          </a>
         )}
         <a
           href="/projects/graph"
@@ -57,7 +60,13 @@ const sections = [
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {section.items.map((p, i) => (
             <div data-project-card data-title={p.title.toLowerCase()} data-tags={p.tags.join(' ')}>
-              <ProjectCard project={p} pinned={pins.includes(p.id)} admin={admin} delay={i * 80} />
+              <ProjectCard
+                project={p}
+                pinned={pins.includes(p.id)}
+                last={seen.get(p.repo?.toLowerCase() ?? '') ?? null}
+                admin={admin}
+                delay={i * 80}
+              />
             </div>
           ))}
         </div>

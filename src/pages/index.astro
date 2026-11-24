@@ -166,7 +166,7 @@ const status = messages[Math.floor(Math.random() * messages.length)];
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project, i) => (
-            <ProjectCard project={project} pinned={project.pinned} admin={admin} delay={i * 80} />
+            <ProjectCard project={project} pinned={project.pinned} last={project.last} admin={admin} delay={i * 80} />
           ))}
         </div>
       </section>

@@ -28,6 +28,13 @@ export class Service {
     return repos.length ? this.events.last(repos) : Promise.resolve({});
   }
 
+  async seen(admin: boolean, days = 90, now = Date.now()): Promise<Map<string, string>> {
+    const items = await this.since(new Date(now - days * 86_400_000).toISOString(), admin);
+    const last = new Map<string, string>();
+    for (const e of items) if (!last.has(e.repo.toLowerCase())) last.set(e.repo.toLowerCase(), e.at);
+    return last;
+  }
+
   since(from: string, admin: boolean, limit = 1000): Promise<Item[]> {
     return this.events.since(from, !admin, limit);
   }

@@ -2,7 +2,7 @@ import { Fault } from '../error';
 import type { Service as Settings } from '../setting/service';
 import type { Hub, Repo } from './hub';
 import type { Catalog } from './port';
-import { Seeder } from './seed';
+import { Seeder, share } from './seed';
 
 export const keys = { orgs: 'ingest_orgs', repos: 'ingest_org_repos' } as const;
 
@@ -98,7 +98,8 @@ export class Service {
       if (await this.seeder.has(name)) return null;
       const remote = await this.hub.repo(name);
       if (!remote || remote.private) return null;
-      return await this.seeder.seed(remote, await this.hub.readme(name));
+      const [readme, bytes] = await Promise.all([this.hub.readme(name), this.hub.languages(name).catch(() => ({}))]);
+      return await this.seeder.seed(remote, readme, share(bytes));
     } catch (err) {
       console.warn(`project seed failed for ${name}:`, err instanceof Error ? err.message : err);
       return null;

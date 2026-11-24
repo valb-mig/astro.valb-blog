@@ -1,5 +1,6 @@
 ---
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Rss, Settings, Search, LogOut } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationBell';
 import { UpdatesConfigDialog } from '@/components/UpdatesConfigDialog';
@@ -54,11 +55,14 @@ const admin = Astro.locals.admin;
     </Button>
 
     <div class="flex items-center justify-end gap-1.5">
-      <Button variant="ghost" size="icon" asChild>
-        <a href="/rss.xml" title="RSS Feed" aria-label="RSS Feed" class="text-muted-foreground hover:text-foreground">
-          <Rss />
-        </a>
-      </Button>
+      <a
+        href="/rss.xml"
+        title="RSS Feed"
+        aria-label="RSS Feed"
+        class={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'text-muted-foreground hover:text-foreground')}
+      >
+        <Rss />
+      </a>
 
       <NotificationBell client:load />
 
@@ -67,11 +71,14 @@ const admin = Astro.locals.admin;
       {admin ? (
         <SettingsDialog client:load />
       ) : (
-        <Button variant="ghost" size="icon" asChild>
-          <a href="/admin/login" title="Settings" aria-label="Settings" class="text-muted-foreground hover:text-foreground">
-            <Settings />
-          </a>
-        </Button>
+        <a
+          href="/admin/login"
+          title="Settings"
+          aria-label="Settings"
+          class={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'text-muted-foreground hover:text-foreground')}
+        >
+          <Settings />
+        </a>
       )}
 
       {admin && (

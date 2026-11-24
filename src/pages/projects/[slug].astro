@@ -5,7 +5,7 @@ import LanguageBadges from '../../components/LanguageBadges.astro';
 import OrgBadge from '../../components/OrgBadge.astro';
 import { ProjectGallery } from '@/components/ProjectGallery';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
 import { app } from '@/app';
@@ -66,12 +66,10 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
             {p.draft && <Badge variant="outline">draft</Badge>}
             <span class="text-muted-foreground">visão admin</span>
             <div class="ml-auto flex items-center gap-1">
-              <Button variant="ghost" size="sm" asChild>
-                <a href={`/admin/projects/${p.id}`} class="flex items-center gap-1">
-                  <Pencil size={13} />
-                  editar
-                </a>
-              </Button>
+              <a href={`/admin/projects/${p.id}`} class={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                <Pencil size={13} />
+                editar
+              </a>
               <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/projects" client:load />
             </div>
           </div>

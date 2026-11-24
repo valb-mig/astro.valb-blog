@@ -73,9 +73,10 @@ describe('gallery', () => {
     await expect(gallery.order('p', ['p/img2.png', 'x'])).rejects.toMatchObject({ code: 'invalid' });
   });
 
-  it('uses the first image as cover, then the GitHub social preview', () => {
-    expect(cover({ images: [{ path: 'p/1', url: 'u1' }], repo: 'me/x' })).toBe('u1');
-    expect(cover({ images: [], repo: 'me/x' })).toBe('https://opengraph.githubassets.com/1/me/x');
-    expect(cover({ images: [], repo: null })).toBeNull();
+  it('uses the first upload, then the readme hero, then the GitHub social preview', () => {
+    expect(cover({ images: [{ path: 'p/1', url: 'u1' }], repo: 'me/x', hero: 'h' })).toBe('u1');
+    expect(cover({ images: [], repo: 'me/x', hero: 'h' })).toBe('h');
+    expect(cover({ images: [], repo: 'me/x', hero: null })).toBe('https://opengraph.githubassets.com/1/me/x');
+    expect(cover({ images: [], repo: null, hero: null })).toBeNull();
   });
 });

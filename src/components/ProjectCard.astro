@@ -3,25 +3,30 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
 import { PinButton } from '@/components/PinButton';
-import { Pencil, Pin } from 'lucide-react';
+import { FileText, GitCommitHorizontal, Pencil, Pin } from 'lucide-react';
+import { Icon } from 'astro-icon/components';
 import { cover, type Status, type Summary } from '@/core/project/project';
 import { app } from '@/app';
 import LanguageBadges from './LanguageBadges.astro';
 import OrgBadge from './OrgBadge.astro';
+import { ago } from '../lib/time';
 
 interface Props {
   project: Summary;
   pinned?: boolean;
+  last?: string | null;
   admin?: boolean;
   delay?: number;
 }
 
-const { project, pinned = false, admin = false, delay = 0 } = Astro.props;
+const { project, pinned = false, last = null, admin = false, delay = 0 } = Astro.props;
 const { id, title, description, slug, tags, status, repo, languages, posts, draft } = project;
 
 const repoUrl = repo ? `https://github.com/${repo}` : undefined;
 const org = app.projects.org(repo);
 const image = cover(project);
+const count = posts === 0 ? 'sem posts' : posts === 1 ? '1 post' : `${posts} posts`;
+const recent = last != null && Date.now() - Date.parse(last) < 7 * 86_400_000;
 
 const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
@@ -77,18 +82,37 @@ const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
 
     <LanguageBadges languages={languages} />
 
-    <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-      <div class="flex flex-wrap gap-1.5">
-        {tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
-      </div>
-      <div class="flex items-center gap-3 text-xs text-muted-foreground">
-        {posts > 0 && (
-          <a href={`/projects/${slug}#posts`} class="transition-colors hover:text-foreground">
-            {posts} posts
-          </a>
+    <div class="mt-auto flex flex-col gap-3 border-t border-border pt-3">
+      {tags.length > 0 && (
+        <div class="flex flex-wrap gap-1.5">
+          {tags.map((tag) => <Badge variant="outline">{tag}</Badge>)}
+        </div>
+      )}
+      <div class="flex items-center gap-4 text-xs text-muted-foreground">
+        <a
+          href={`/projects/${slug}#posts`}
+          class={`flex items-center gap-1.5 transition-colors hover:text-foreground ${posts > 0 ? 'text-foreground/80' : ''}`}
+        >
+          <FileText size={13} />
+          {count}
+        </a>
+        {last && (
+          <span
+            class={`flex items-center gap-1.5 ${recent ? 'text-emerald-400' : ''}`}
+            title={`último commit em ${new Date(last).toLocaleDateString('pt-BR')}`}
+          >
+            <GitCommitHorizontal size={13} />
+            {ago(last)}
+          </span>
         )}
         {repoUrl && (
-          <a href={repoUrl} target="_blank" rel="noopener" class="transition-colors hover:text-foreground">
+          <a
+            href={repoUrl}
+            target="_blank"
+            rel="noopener"
+            class="ml-auto flex items-center gap-1.5 transition-colors hover:text-foreground"
+          >
+            <Icon name="simple-icons:github" class="size-3.5" aria-hidden="true" />
             repo
           </a>
         )}

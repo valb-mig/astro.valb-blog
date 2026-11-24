@@ -67,7 +67,7 @@ describe('ingest orgs', () => {
     await orgs.add('acme');
     expect(await orgs.toggle('Acme/old', true)).toEqual({ repo: 'Acme/old', enabled: true, project: 'old' });
     expect(catalog.seeds).toEqual([
-      expect.objectContaining({ slug: 'old', repo: 'Acme/old', description: 'legacy', tags: ['php'], content: '# Acme/old', status: 'active' }),
+      expect.objectContaining({ slug: 'old', repo: 'Acme/old', description: 'legacy', tags: ['php'], content: '# Acme/old', status: 'active', languages: { Kotlin: 75, Shell: 25 } }),
     ]);
   });
 

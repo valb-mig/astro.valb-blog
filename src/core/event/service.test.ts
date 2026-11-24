@@ -38,4 +38,20 @@ describe('event feed', () => {
   it('requires a repo for recent events', () => {
     expect(() => new Service(new MemoryEvents()).recent(null)).toThrow('repo required');
   });
+
+  it('maps each repo to its latest commit within the window', async () => {
+    const rows = new MemoryEvents();
+    const now = Date.parse('2026-11-24T00:00:00Z');
+    rows.items = [
+      event(1, '2026-11-23T00:00:00Z', 'Me/A'),
+      event(2, '2026-11-20T00:00:00Z', 'me/a'),
+      event(3, '2026-11-10T00:00:00Z', 'me/b'),
+      event(4, '2026-01-01T00:00:00Z', 'me/old'),
+    ];
+    const seen = await new Service(rows).seen(true, 90, now);
+    expect([...seen]).toEqual([
+      ['me/a', '2026-11-23T00:00:00Z'],
+      ['me/b', '2026-11-10T00:00:00Z'],
+    ]);
+  });
 });

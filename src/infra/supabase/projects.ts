@@ -12,10 +12,11 @@ import type {
   Status,
   Summary,
 } from '@/core/project/project';
+import { hero } from '@/core/project/readme';
 import { url } from './bucket';
 import { counted, defined, must, type Db } from './client';
 
-const brief = 'id,slug,title,description,date,tags,status,repo,draft,languages,images';
+const brief = 'id,slug,title,description,date,tags,status,repo,draft,languages,images,content';
 
 const card =
   'id,slug,title,languages,draft,repo,uptime_url,ci_status,ci_checked_at,latest_release,latest_release_at,last_status_code,last_uptime_check_at,deploy_status,deploy_status_at';
@@ -73,6 +74,7 @@ const base = (r: Row, images: Image[]): Omit<Summary, 'posts'> => ({
   draft: r.draft,
   languages: r.languages,
   images,
+  hero: hero(r.content, r.repo),
 });
 
 const project = (r: Row, images: Image[]): Project => ({

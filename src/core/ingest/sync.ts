@@ -1,6 +1,6 @@
 import type { Health } from '../project/project';
 import type { Catalog, Probe, Remote, Source, Tracked } from './port';
-import { Seeder } from './seed';
+import { Seeder, share } from './seed';
 
 const reason = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -42,13 +42,9 @@ export class Sync {
     let done = 0;
     for (const t of repos) {
       try {
-        const bytes = await this.source.languages(t.repo!);
-        const total = Object.values(bytes).reduce((sum, b) => sum + b, 0);
-        if (!total) continue;
-        await this.catalog.languages(
-          t.id,
-          Object.fromEntries(Object.entries(bytes).map(([lang, b]) => [lang, Math.round((b / total) * 1000) / 10])),
-        );
+        const languages = share(await this.source.languages(t.repo!));
+        if (!languages) continue;
+        await this.catalog.languages(t.id, languages);
         done++;
       } catch (err) {
         console.warn(`Languages failed for ${t.repo}:`, reason(err));

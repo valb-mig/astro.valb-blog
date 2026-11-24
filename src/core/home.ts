@@ -15,7 +15,7 @@ export type Work = { repo: string; commits: number; last: string; project: Proje
 
 export type Today = { date: string; slug: string; lead: string };
 
-export type Card = Project & { pinned: boolean };
+export type Card = Project & { pinned: boolean; last: string | null };
 
 export type Home = { today: Today | null; work: Work[]; posts: Post[]; projects: Card[] };
 
@@ -34,12 +34,12 @@ const work = (events: Item[], from: string, projects: Project[]): Work[] => {
 };
 
 const order = (projects: Project[], pins: string[], last: Map<string, string>): Card[] => {
-  const pinned = pins.flatMap((id) => projects.filter((p) => p.id === id)).map((p) => ({ ...p, pinned: true }));
   const seen = (p: Project) => last.get(p.repo?.toLowerCase() ?? '') ?? '';
+  const pinned = pins.flatMap((id) => projects.filter((p) => p.id === id)).map((p) => ({ ...p, pinned: true, last: seen(p) || null }));
   const rest = projects
     .filter((p) => p.status === 'active' && !pins.includes(p.id))
     .sort((a, b) => seen(b).localeCompare(seen(a)) || b.date.localeCompare(a.date))
-    .map((p) => ({ ...p, pinned: false }));
+    .map((p) => ({ ...p, pinned: false, last: seen(p) || null }));
   return [...pinned, ...rest].slice(0, Math.max(shown, pinned.length));
 };
 
