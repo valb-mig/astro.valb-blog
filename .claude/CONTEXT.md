@@ -262,6 +262,16 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   A bolinha de busca flutuante (`z-[110]`, acima da moldura de admin) some
   enquanto um modal está aberto (`in-data-[scroll-locked]:hidden`) — antes
   cobria os switches no mobile.
+- **Capa automática do README** (2026-11-24): ordem da capa = imagem enviada
+  → imagem de destaque do README → social preview do GitHub
+  (`core/project/project.ts` `cover`). Destaque (`core/project/readme.ts`
+  `hero`) = primeira imagem do README (markdown ou `<img>`, na ordem em que
+  aparecem) que não seja badge (shields, CI, codecov…), não tenha `width` <
+  300, não tenha nome de logo/ícone/avatar e não seja SVG estreito — pula o
+  ícone do topo e pega o screenshot. Calculado na leitura (README só é salvo
+  na criação do projeto, não muda), por isso o list de projetos passou a
+  trazer `content`. Screenshot de celular com `width` pequeno é descartado de
+  propósito: num corte 2:1 fica ruim.
 - **Imagens e links relativos do README** (2026-11-24): README sincronizado
   do GitHub usa caminho relativo (`docs/icon.svg`, `./img/a.png`,
   `/assets/x.png`) que resolvia contra o domínio do blog — 43 de 79 imagens
