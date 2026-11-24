@@ -27,9 +27,20 @@ const trigger = process.env.GITHUB_EVENT_NAME ?? (from ? 'backfill' : 'local');
 const pipeline = ingest(from ? 1000 : 100);
 
 (async () => {
+  const failed: string[] = [];
   for (const [i, date] of dates.entries()) {
     console.log(`\n== ${date}`);
-    await pipeline.run(date, force, trigger, i === 0);
+    try {
+      await pipeline.run(date, force, trigger, i === 0);
+    } catch (err) {
+      if (dates.length === 1) throw err;
+      console.error(`${date} failed:`, err instanceof Error ? err.message : err);
+      failed.push(date);
+    }
+  }
+  if (failed.length) {
+    console.error(`\nFailed days: ${failed.join(', ')}`);
+    process.exit(1);
   }
 })().catch((err) => {
   console.error(err);
