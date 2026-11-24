@@ -1,9 +1,11 @@
 import { age, Service as Auth } from '@/core/auth/service';
 import { Fault } from '@/core/error';
 import { Service as Events } from '@/core/event/service';
+import { Service as Home } from '@/core/home';
 import { Service as Orgs } from '@/core/ingest/orgs';
 import { Limiter } from '@/core/limit';
 import { Service as Posts } from '@/core/post/service';
+import { Pins } from '@/core/project/pins';
 import { Service as Projects } from '@/core/project/service';
 import { Service as Reactions } from '@/core/reaction/service';
 import { Service as Settings } from '@/core/setting/service';
@@ -43,6 +45,7 @@ const settings = new Settings(new SettingRows(db));
 const events = new Events(new EventRows(db));
 const posts = new Posts(new PostRows(db), updates);
 const projects = new Projects(new ProjectRows(db), events, updates, equal, env('GH_USERNAME') ?? null);
+const pins = new Pins(settings);
 const reactions = new Reactions(new ReactionRows(db), new Limiter(10, 60_000));
 
 export const app = {
@@ -52,6 +55,8 @@ export const app = {
   reactions,
   updates,
   settings,
+  pins,
+  home: new Home(posts, projects, events, pins),
   stack: new Stack(new StackRows(db), updates),
   auth: new Auth(new Hmac(secret, age), user && pass ? { user, pass } : null, new Limiter(5, 15 * 60_000)),
   orgs: new Orgs(settings, read ? new Hub(read) : null, new Catalog(db)),

@@ -3,20 +3,31 @@ import Base from '../layouts/Base.astro';
 import PostCard from '../components/PostCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import WakatimeWidget from '../components/WakatimeWidget.astro';
+import OrgBadge from '../components/OrgBadge.astro';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw } from 'lucide-react';
 import { app } from '@/app';
+import { ago } from '../lib/time';
+import { render } from '../lib/markdown';
 import type { Status } from '@/core/run/run';
 
 const admin = Astro.locals.admin;
 
-const [posts, projects, stats] = await Promise.all([
-  app.posts.list({ drafts: false, limit: 3 }),
-  app.projects.list({ drafts: false, status: 'active', limit: 3 }),
-  admin ? app.stats.get() : null,
-]);
+const [home, stats] = await Promise.all([app.home.get(admin), admin ? app.stats.get() : null]);
+const { today, work, posts, projects } = home;
+const lead = today ? await render(today.lead) : '';
+
+const fresh = (iso: string) => Date.now() - Date.parse(iso) < 24 * 60 * 60 * 1000;
+
+const weekday = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
 
 const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   success: 'default',
@@ -64,6 +75,69 @@ const status = messages[Math.floor(Math.random() * messages.length)];
       </div>
     </section>
 
+    {(today || work.length > 0) && (
+      <section class="fade-in pb-20">
+        <div class="mb-6 flex items-baseline justify-between">
+          <h2 class="text-lg font-semibold">Trabalhando em</h2>
+          <a href="/atividade" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
+            atividade →
+          </a>
+        </div>
+        <div class={`grid grid-cols-1 gap-4 ${today && work.length ? 'lg:grid-cols-2' : ''}`}>
+          {today && (
+            <a href={`/posts/${today.slug}`} class="group">
+              <Card className="h-full transition-colors group-hover:ring-foreground/20">
+                <CardContent className="flex h-full flex-col gap-3">
+                  <span class="text-xs text-muted-foreground first-letter:uppercase">
+                    {weekday(today.date)} · {ago(`${today.date}T23:59:59Z`)}
+                  </span>
+                  <div
+                    class="line-clamp-6 text-sm leading-relaxed [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs"
+                    set:html={lead}
+                  />
+                  <span class="mt-auto text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+                    ler o dia →
+                  </span>
+                </CardContent>
+              </Card>
+            </a>
+          )}
+          {work.length > 0 && (
+            <Card className="gap-0 py-0">
+              <p class="border-b border-border px-4 py-2.5 text-xs text-muted-foreground">últimos 7 dias</p>
+              <ul class="divide-y divide-border">
+                {work.slice(0, 6).map((w) => {
+                  const org = app.projects.org(w.repo);
+                  const name = w.project?.title ?? w.repo.split('/')[1];
+                  return (
+                    <li class="flex items-center gap-3 px-4 py-2.5">
+                      <span
+                        class={`size-2 shrink-0 rounded-full ${fresh(w.last) ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}
+                        title={fresh(w.last) ? 'commit nas últimas 24h' : undefined}
+                      />
+                      <span class="flex min-w-0 flex-1 items-center gap-2">
+                        {org && <OrgBadge org={org} />}
+                        {w.project ? (
+                          <a href={`/projects/${w.project.slug}`} class="truncate text-sm font-medium hover:text-foreground/80">
+                            {name}
+                          </a>
+                        ) : (
+                          <span class="truncate font-mono text-sm">{name}</span>
+                        )}
+                      </span>
+                      <span class="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {w.commits} {w.commits === 1 ? 'commit' : 'commits'} · {ago(w.last)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
+        </div>
+      </section>
+    )}
+
     <section class="pb-20">
       <div class="mb-6 flex items-baseline justify-between">
         <h2 class="text-lg font-semibold">Posts recentes</h2>
@@ -85,14 +159,14 @@ const status = messages[Math.floor(Math.random() * messages.length)];
     {projects.length > 0 && (
       <section class="pb-24">
         <div class="mb-6 flex items-baseline justify-between">
-          <h2 class="text-lg font-semibold">Projetos ativos</h2>
+          <h2 class="text-lg font-semibold">Projetos</h2>
           <a href="/projects" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
             ver todos →
           </a>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project, i) => (
-            <ProjectCard project={project} delay={i * 80} />
+            <ProjectCard project={project} pinned={project.pinned} admin={admin} delay={i * 80} />
           ))}
         </div>
       </section>

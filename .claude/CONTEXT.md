@@ -262,6 +262,20 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   A bolinha de busca flutuante (`z-[110]`, acima da moldura de admin) some
   enquanto um modal está aberto (`in-data-[scroll-locked]:hidden`) — antes
   cobria os switches no mobile.
+- **Home com "trabalhando em" + projetos fixados** (2026-11-24): `core/home.ts`
+  junta tudo pra home numa chamada (`app.home.get(admin)`): repos com commit
+  nos últimos 7 dias (uma query só em `source_events`, `events.since`, 90 dias
+  pra também ordenar projetos), o parágrafo de abertura do post de atividade
+  mais recente (`activity.lead`, o texto que o LLM já escreveu) e os projetos.
+  Fixados ficam em `settings.pinned_projects` (array JSON **ordenado** — não
+  usa `settings.save`, que ordena alfabeticamente), aparecem primeiro em
+  qualquer status; o resto são os ativos por último commit, depois por data.
+  Visitante só vê commit mencionável no "trabalhando em", mesma regra do
+  /atividade.
+- **Gotcha do dev server**: rodar `pnpm check`/`pnpm test` com o `pnpm dev` de
+  pé faz o Vite re-otimizar dependências ("vite config has changed") e a
+  página aberta passa a falhar a hidratação de todas as islands ("Failed to
+  fetch dynamically imported module") até dar reload. Não é bug do código.
 - **Chip da org nos projetos** (2026-11-24): projeto cujo repo não é do
   `GH_USERNAME` mostra um chip com avatar e nome do dono (`OrgBadge.astro`,
   regra em `core/project/project.ts` `org()`, exposta como

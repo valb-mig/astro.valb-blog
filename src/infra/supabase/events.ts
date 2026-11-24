@@ -64,6 +64,18 @@ export class Events implements Port {
     return out;
   }
 
+  async since(from: string, linked: boolean, limit: number): Promise<Item[]> {
+    const rows = must(
+      await this.db
+        .from('source_events')
+        .select(linked ? `${cols},post_events!inner(post_id)` : cols)
+        .gte('occurred_at', from)
+        .order('occurred_at', { ascending: false })
+        .limit(limit),
+    ) as unknown as Row[];
+    return rows.map(item);
+  }
+
   async remove(id: string): Promise<void> {
     must(await this.db.from('post_events').delete().eq('event_id', id));
     must(await this.db.from('source_events').delete().eq('id', id));

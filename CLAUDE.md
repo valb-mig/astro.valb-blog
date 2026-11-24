@@ -57,7 +57,7 @@ Admin isn't a separate app — browsing pages (posts, projects, atividade, about
 
 | Route | File / service |
 |---|---|
-| `/` | `src/pages/index.astro` — latest posts/projects; admin: `app.stats.get()` + "rodar ingest agora" |
+| `/` | `src/pages/index.astro` — `app.home.get(admin)` (`src/core/home.ts`): "trabalhando em" (commits dos últimos 7 dias + lead do último post de atividade), posts recentes, projetos (fixados via `app.pins`/`/api/projects/pins` primeiro, depois por último commit); admin: `app.stats.get()` + "rodar ingest agora" |
 | `/posts`, `/posts/[slug]` | `app.posts.list/find/related`, reactions via `app.reactions.tally`; admin sees drafts + edit/delete |
 | `/atividade` | `app.events.feed` (visitors only see events linked to a post — mentionable ones), heatmap from `app.posts.days` |
 | `/projects`, `/projects/[slug]`, `/projects/graph` | `app.projects.list/find`, linked posts via `app.posts.list({ projects })` |

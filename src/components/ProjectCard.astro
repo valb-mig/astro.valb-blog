@@ -2,7 +2,8 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
-import { Pencil } from 'lucide-react';
+import { PinButton } from '@/components/PinButton';
+import { Pencil, Pin } from 'lucide-react';
 import type { Status, Summary } from '@/core/project/project';
 import { app } from '@/app';
 import LanguageBadges from './LanguageBadges.astro';
@@ -10,11 +11,12 @@ import OrgBadge from './OrgBadge.astro';
 
 interface Props {
   project: Summary;
+  pinned?: boolean;
   admin?: boolean;
   delay?: number;
 }
 
-const { project, admin = false, delay = 0 } = Astro.props;
+const { project, pinned = false, admin = false, delay = 0 } = Astro.props;
 const { id, title, description, slug, tags, status, repo, languages, posts, draft } = project;
 
 const repoUrl = repo ? `https://github.com/${repo}` : undefined;
@@ -37,10 +39,12 @@ const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
         </a>
       </div>
       <div class="flex shrink-0 items-center gap-1.5">
+        {pinned && !admin && <Pin size={13} className="text-amber-400" aria-label="fixado" />}
         {draft && <Badge variant="outline">draft</Badge>}
         <Badge variant={variant[status]}>{status}</Badge>
         {admin && (
           <div class="flex items-center gap-0.5">
+            <PinButton id={id} pinned={pinned} client:load />
             <a
               href={`/admin/projects/${id}`}
               title="editar"
