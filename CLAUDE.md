@@ -15,6 +15,7 @@ pnpm preview          # preview built output
 pnpm ingest:local      # run the GitHub→LLM→Supabase ingest pipeline locally (reads .env)
 pnpm ingest:local -- --force              # force-rebuild the day's activity post even with no new events
 pnpm ingest:local -- --date=YYYY-MM-DD    # run the pipeline for a past date instead of today
+pnpm ingest:local -- --from=YYYY-MM-DD --to=YYYY-MM-DD   # backfill a range (project sync only once, deeper mirrors)
 ```
 
 CI (`.github/workflows/check.yml`) runs `check`, `test` and `build` on every PR and push to `main`. No linter configured.

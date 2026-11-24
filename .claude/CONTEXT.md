@@ -304,6 +304,17 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   qualquer status; o resto são os ativos por último commit, depois por data.
   Visitante só vê commit mencionável no "trabalhando em", mesma regra do
   /atividade.
+- **Cron do ingest desligado por inatividade + backfill** (2026-11-24): o
+  GitHub marca workflow agendado como `disabled_inactivity` depois de 60 dias
+  sem atividade no repo — o ingest parou em 23/09 sem erro nenhum. Religar:
+  `gh workflow enable ingest.yml`. Recuperar dias perdidos:
+  `pnpm ingest:local -- --from=YYYY-MM-DD --to=YYYY-MM-DD` — sync de
+  projetos/linguagens/saúde só no primeiro dia (senão ~130 chamadas de API
+  por dia estouram o rate limit), mirror buscado uma vez por repo por
+  processo e com `--depth 1000` (100 não cobre meses de commit). Runs ficam
+  com trigger `backfill`. O ingest não precisa de escrita no GitHub: o
+  `GH_READ_TOKEN` (`repo`, `read:org`) serve; sem `user:email`, o filtro de
+  autor dos repos de org usa só os e-mails noreply.
 - **Nada de `<Button asChild>` em `.astro`** (2026-11-24): num arquivo
   `.astro` o filho do componente React chega como HTML estático, o `Slot` do
   Radix não consegue mesclar as classes do botão e o `<a>` sai cru (sem
