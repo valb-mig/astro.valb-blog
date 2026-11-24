@@ -253,6 +253,22 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   da Vercel, separado do `GH_TOKEN` do ingest, que tem escopo amplo demais
   (admin:org, delete_repo...) pra ir pra Vercel — recomendado ao usuário
   trocar por um token só-leitura.
+- **Settings em abas + projeto de org na hora** (2026-11-24): o modal virou
+  Geral / Repos / Organizações (`SettingsAdminPanel.tsx`), largo e com altura
+  fixa, scroll só dentro da aba. Ligar repo **público** de org no painel cria o
+  projeto na hora (`Orgs.toggle` → `Seeder`, mesma lógica de criação do ingest,
+  README via `GH_READ_TOKEN`) em vez de esperar o próximo ingest; privado segue
+  só rastreado; desligar não apaga projeto. Falha ao criar não desfaz o toggle.
+  A bolinha de busca flutuante (`z-[110]`, acima da moldura de admin) some
+  enquanto um modal está aberto (`in-data-[scroll-locked]:hidden`) — antes
+  cobria os switches no mobile.
+- **Chip da org nos projetos** (2026-11-24): projeto cujo repo não é do
+  `GH_USERNAME` mostra um chip com avatar e nome do dono (`OrgBadge.astro`,
+  regra em `core/project/project.ts` `org()`, exposta como
+  `app.projects.org(repo)`) — no card, na página do projeto e no status do
+  /about. Resolve projetos homônimos de orgs diferentes (ex.: dois `site`).
+  Avatar direto de `github.com/<org>.png`, sem API. Sem `GH_USERNAME` no
+  runtime, os chips simplesmente não aparecem.
 - **`/atividade` público só mostra evento linkado a post** (2026-10-09):
   antes listava todo `source_events` pra visitante, vazando título de commit
   de repo privado / com "mencionar" desligado. Agora visitante usa

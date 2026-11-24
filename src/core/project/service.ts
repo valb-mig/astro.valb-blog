@@ -3,7 +3,7 @@ import type { Service as Events } from '../event/service';
 import type { Service as Updates } from '../update/service';
 import { split, type Board } from './board';
 import type { Projects, Query } from './port';
-import type { Input, Key, Project, Repo, Summary } from './project';
+import { org, type Input, type Key, type Project, type Repo, type Summary } from './project';
 
 export class Service {
   constructor(
@@ -11,7 +11,12 @@ export class Service {
     private events: Events,
     private updates: Updates,
     private equal: (a: string, b: string) => boolean,
+    private user: string | null = null,
   ) {}
+
+  org(repo: string | null): string | null {
+    return org(repo, this.user);
+  }
 
   list(q: Query): Promise<Summary[]> {
     return this.projects.list(q);

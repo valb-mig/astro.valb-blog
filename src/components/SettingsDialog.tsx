@@ -27,10 +27,10 @@ export function SettingsDialog() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-x-hidden overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="flex h-[85vh] max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>configurações do site</DialogDescription>
+            <DialogDescription>configurações do site e do ingest</DialogDescription>
           </DialogHeader>
           <SettingsAdminPanel />
         </DialogContent>

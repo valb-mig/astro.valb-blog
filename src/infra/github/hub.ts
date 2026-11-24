@@ -4,6 +4,35 @@ import type { Hub as Port, Repo } from '@/core/ingest/hub';
 
 const upstream = (err: unknown) => new Fault('upstream', err instanceof Error ? err.message : String(err));
 
+const missing = (err: unknown) => (err as { status?: number }).status === 404;
+
+type Raw = {
+  full_name: string;
+  name: string;
+  private: boolean;
+  description: string | null;
+  created_at?: string | null;
+  topics?: string[];
+  archived?: boolean;
+  pushed_at?: string | null;
+};
+
+const repo = (r: Raw): Repo => ({
+  repo: r.full_name,
+  name: r.name,
+  private: r.private,
+  description: r.description,
+  createdAt: r.created_at ?? null,
+  topics: r.topics ?? [],
+  archived: r.archived ?? false,
+  pushedAt: r.pushed_at ?? null,
+});
+
+const split = (name: string) => {
+  const [owner, repo] = name.split('/');
+  return { owner, repo };
+};
+
 export class Hub implements Port {
   private kit: Octokit;
 
@@ -20,23 +49,34 @@ export class Hub implements Port {
     try {
       return (await this.kit.rest.orgs.get({ org: login })).data.login;
     } catch (err) {
-      if ((err as { status?: number }).status === 404) return null;
+      if (missing(err)) return null;
       throw upstream(err);
     }
   }
 
   async repos(org: string): Promise<Repo[]> {
     try {
-      const repos = await this.kit.paginate(this.kit.rest.repos.listForOrg, { org, type: 'all', per_page: 100 });
-      return repos.map((r) => ({
-        repo: r.full_name,
-        name: r.name,
-        private: r.private,
-        archived: r.archived ?? false,
-        pushedAt: r.pushed_at ?? null,
-      }));
+      return (await this.kit.paginate(this.kit.rest.repos.listForOrg, { org, type: 'all', per_page: 100 })).map(repo);
     } catch (err) {
       throw upstream(err);
+    }
+  }
+
+  async repo(name: string): Promise<Repo | null> {
+    try {
+      return repo((await this.kit.rest.repos.get(split(name))).data);
+    } catch (err) {
+      if (missing(err)) return null;
+      throw upstream(err);
+    }
+  }
+
+  async readme(name: string): Promise<string> {
+    try {
+      const { data } = await this.kit.rest.repos.getReadme(split(name));
+      return Buffer.from(data.content, 'base64').toString('utf-8');
+    } catch {
+      return '';
     }
   }
 }
