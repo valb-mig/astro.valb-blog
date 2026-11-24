@@ -262,6 +262,14 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   A bolinha de busca flutuante (`z-[110]`, acima da moldura de admin) some
   enquanto um modal está aberto (`in-data-[scroll-locked]:hidden`) — antes
   cobria os switches no mobile.
+- **Imagens e links relativos do README** (2026-11-24): README sincronizado
+  do GitHub usa caminho relativo (`docs/icon.svg`, `./img/a.png`,
+  `/assets/x.png`) que resolvia contra o domínio do blog — 43 de 79 imagens
+  quebradas. `render(content, repo)` (`src/lib/markdown.ts`) reescreve na
+  sanitização: `img src` relativo → `raw.githubusercontent.com/<repo>/HEAD/…`
+  (HEAD = branch padrão; serve PNG e SVG com o content-type certo) e `a href`
+  relativo → `github.com/<repo>/blob/HEAD/…`. Feito no HTML final, não no
+  markdown, porque muito README usa `<img>` cru.
 - **Imagens de projeto** (2026-11-24): galeria por projeto com upload de
   verdade. Arquivos no bucket **público** `projects` do Supabase Storage
   (`<projectId>/<uuid>.<ext>`), criado pelo próprio app no primeiro upload
