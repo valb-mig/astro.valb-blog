@@ -83,6 +83,7 @@ export class MemoryProjects implements Projects {
   items: Project[] = [];
   cardsList: Card[] = [];
   reports = new Map<string, Deploy>();
+  files = new Map<string, string[]>();
 
   async list() {
     return this.items.map((p): Summary => ({ ...p, posts: 0 }));
@@ -117,6 +118,13 @@ export class MemoryProjects implements Projects {
   }
   async count() {
     return this.items.length;
+  }
+  async paths(target: string) {
+    return this.items.some((p) => p.id === target) ? (this.files.get(target) ?? []) : null;
+  }
+  async gallery(target: string, paths: string[]) {
+    this.files.set(target, paths);
+    return paths.map((path) => ({ path, url: `https://cdn.test/${path}` }));
   }
 }
 

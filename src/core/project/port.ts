@@ -1,4 +1,4 @@
-import type { Card, Deploy, Input, Key, Project, Repo, Status, Summary } from './project';
+import type { Card, Deploy, Image, Input, Key, Project, Repo, Status, Summary } from './project';
 
 export type Query = {
   drafts: boolean;
@@ -17,4 +17,6 @@ export interface Projects {
   token(id: string): Promise<string | null>;
   report(id: string, deploy: Deploy): Promise<void>;
   count(): Promise<number>;
+  paths(id: string): Promise<string[] | null>;
+  gallery(id: string, paths: string[]): Promise<Image[]>;
 }
