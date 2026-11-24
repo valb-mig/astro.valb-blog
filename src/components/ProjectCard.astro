@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { DeleteButton } from '@/components/DeleteButton';
 import { PinButton } from '@/components/PinButton';
 import { Pencil, Pin } from 'lucide-react';
-import type { Status, Summary } from '@/core/project/project';
+import { cover, type Status, type Summary } from '@/core/project/project';
 import { app } from '@/app';
 import LanguageBadges from './LanguageBadges.astro';
 import OrgBadge from './OrgBadge.astro';
@@ -21,6 +21,7 @@ const { id, title, description, slug, tags, status, repo, languages, posts, draf
 
 const repoUrl = repo ? `https://github.com/${repo}` : undefined;
 const org = app.projects.org(repo);
+const image = cover(project);
 
 const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
@@ -30,6 +31,17 @@ const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
 ---
 
 <Card className="fade-in h-full" style={{ transitionDelay: `${delay}ms` }}>
+  {image && (
+    <a href={`/projects/${slug}`} tabindex="-1" aria-hidden="true" class="block overflow-hidden">
+      <img
+        src={image}
+        alt=""
+        loading="lazy"
+        onerror="this.closest('a').remove()"
+        class="aspect-[2/1] w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
+      />
+    </a>
+  )}
   <CardContent className="flex h-full flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
       <div class="flex min-w-0 items-center gap-2">
