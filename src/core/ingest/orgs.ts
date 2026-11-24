@@ -1,6 +1,8 @@
 import { Fault } from '../error';
 import type { Service as Settings } from '../setting/service';
 import type { Hub, Repo } from './hub';
+import type { Catalog } from './port';
+import { Seeder } from './seed';
 
 export const keys = { orgs: 'ingest_orgs', repos: 'ingest_org_repos' } as const;
 
@@ -14,13 +16,20 @@ export const owner = (repo: string) => repo.split('/')[0].toLowerCase();
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-export type Overview = { configured: string[]; suggestions: string[]; tokenMissing: boolean };
+export type Overview = { configured: string[]; enabled: string[]; suggestions: string[]; tokenMissing: boolean };
+
+export type Toggled = { repo: string; enabled: boolean; project: string | null };
 
 export class Service {
+  private seeder: Seeder | null;
+
   constructor(
     private settings: Settings,
     private hub: Hub | null,
-  ) {}
+    catalog: Catalog | null = null,
+  ) {
+    this.seeder = catalog ? new Seeder(catalog) : null;
+  }
 
   configured(): Promise<string[]> {
     return this.settings.list(keys.orgs);
@@ -31,8 +40,8 @@ export class Service {
   }
 
   async overview(): Promise<Overview> {
-    const configured = await this.configured();
-    if (!this.hub) return { configured, suggestions: [], tokenMissing: true };
+    const [configured, enabled] = await Promise.all([this.configured(), this.enabled()]);
+    if (!this.hub) return { configured, enabled, suggestions: [], tokenMissing: true };
 
     let suggestions: string[] = [];
     try {
@@ -40,7 +49,7 @@ export class Service {
     } catch (err) {
       console.warn('github org listing failed:', err instanceof Error ? err.message : err);
     }
-    return { configured, suggestions, tokenMissing: false };
+    return { configured, enabled, suggestions, tokenMissing: false };
   }
 
   async add(org: unknown): Promise<string[]> {
@@ -71,7 +80,7 @@ export class Service {
       .sort((a, b) => (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''));
   }
 
-  async toggle(repo: unknown, on: unknown): Promise<{ repo: string; enabled: boolean }> {
+  async toggle(repo: unknown, on: unknown): Promise<Toggled> {
     if (typeof repo !== 'string' || !repoName.test(repo) || typeof on !== 'boolean') {
       throw new Fault('invalid', 'repo (owner/name) e enabled são obrigatórios');
     }
@@ -80,7 +89,20 @@ export class Service {
     }
     const rest = (await this.enabled()).filter((r) => !same(r, repo));
     await this.settings.save(keys.repos, on ? [...rest, repo] : rest);
-    return { repo, enabled: on };
+    return { repo, enabled: on, project: on ? await this.seed(repo) : null };
+  }
+
+  private async seed(name: string): Promise<string | null> {
+    if (!this.hub || !this.seeder) return null;
+    try {
+      if (await this.seeder.has(name)) return null;
+      const remote = await this.hub.repo(name);
+      if (!remote || remote.private) return null;
+      return await this.seeder.seed(remote, await this.hub.readme(name));
+    } catch (err) {
+      console.warn(`project seed failed for ${name}:`, err instanceof Error ? err.message : err);
+      return null;
+    }
   }
 
   private need(): Hub {

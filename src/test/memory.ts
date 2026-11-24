@@ -188,4 +188,10 @@ export class MemoryHub implements Hub {
   async repos(org: string) {
     return this.orgs.get(org) ?? [];
   }
+  async repo(name: string) {
+    return [...this.orgs.values()].flat().find((r) => r.repo.toLowerCase() === name.toLowerCase()) ?? null;
+  }
+  async readme(name: string) {
+    return `# ${name}`;
+  }
 }

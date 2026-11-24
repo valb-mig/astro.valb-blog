@@ -1,23 +1,20 @@
 import type { Health } from '../project/project';
 import type { Catalog, Probe, Remote, Source, Tracked } from './port';
+import { Seeder } from './seed';
 
 const reason = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-export const slugify = (name: string) =>
-  name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
 export class Sync {
+  private seeder: Seeder;
+
   constructor(
     private source: Source,
     private catalog: Catalog,
     private probe: Probe,
     private now: () => string = () => new Date().toISOString(),
-  ) {}
+  ) {
+    this.seeder = new Seeder(catalog, now);
+  }
 
   async projects(remotes: Remote[]): Promise<void> {
     const open = remotes.filter((r) => !r.private);
@@ -32,16 +29,7 @@ export class Sync {
 
     for (const r of fresh) {
       try {
-        await this.catalog.seed({
-          slug: await this.slug(r.name),
-          title: r.name,
-          description: r.description ?? '',
-          content: await this.source.readme(r.repo),
-          date: r.createdAt ?? this.now(),
-          tags: r.topics,
-          status: r.archived ? 'archived' : 'active',
-          repo: r.repo,
-        });
+        await this.seeder.seed(r, await this.source.readme(r.repo));
       } catch (err) {
         console.warn(`Project seed failed for ${r.repo}:`, reason(err));
       }
@@ -100,12 +88,5 @@ export class Sync {
       }
     }
     console.log(`Health updated on ${done}/${tracked.length} project(s).`);
-  }
-
-  private async slug(name: string): Promise<string> {
-    const base = slugify(name);
-    let slug = base;
-    for (let n = 2; await this.catalog.taken(slug); n++) slug = `${base}-${n}`;
-    return slug;
   }
 }

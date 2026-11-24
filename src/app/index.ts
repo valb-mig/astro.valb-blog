@@ -13,6 +13,7 @@ import { Service as Updates } from '@/core/update/service';
 import { equal, Hmac } from '@/infra/crypto';
 import { Dispatch } from '@/infra/github/dispatch';
 import { Hub } from '@/infra/github/hub';
+import { Catalog } from '@/infra/supabase/catalog';
 import { Events as EventRows } from '@/infra/supabase/events';
 import { Posts as PostRows } from '@/infra/supabase/posts';
 import { Projects as ProjectRows } from '@/infra/supabase/projects';
@@ -53,7 +54,7 @@ export const app = {
   settings,
   stack: new Stack(new StackRows(db), updates),
   auth: new Auth(new Hmac(secret, age), user && pass ? { user, pass } : null, new Limiter(5, 15 * 60_000)),
-  orgs: new Orgs(settings, read ? new Hub(read) : null),
+  orgs: new Orgs(settings, read ? new Hub(read) : null, new Catalog(db)),
   stats: new Stats(posts, projects, reactions, new Runs(db)),
   trigger: {
     run: () =>
