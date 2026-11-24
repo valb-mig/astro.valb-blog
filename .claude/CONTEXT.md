@@ -315,6 +315,14 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   com trigger `backfill`. O ingest não precisa de escrita no GitHub: o
   `GH_READ_TOKEN` (`repo`, `read:org`) serve; sem `user:email`, o filtro de
   autor dos repos de org usa só os e-mails noreply.
+- **Modelos de LLM configuráveis + retry** (2026-11-24): o Groq aposentou o
+  `llama-3.3-70b-versatile` (404 `model_not_found`) — o default virou
+  `openai/gpt-oss-120b` (aceita JSON mode), sobrescrevível por `GROQ_MODEL`;
+  Gemini idem com `GEMINI_MODEL` (default `gemini-2.5-flash`). Cada provider
+  vai embrulhado em `core/llm/retry.ts`: erro transitório (429/5xx) tenta de
+  novo até 3x com espera 2s/4s antes de cair no fallback — o Gemini devolve
+  503 "high demand" com frequência. No backfill, dia que falha é registrado e
+  o lote segue.
 - **Nada de `<Button asChild>` em `.astro`** (2026-11-24): num arquivo
   `.astro` o filho do componente React chega como HTML estático, o `Slot` do
   Radix não consegue mesclar as classes do botão e o `<a>` sai cru (sem
