@@ -7,6 +7,10 @@ import type { Repo } from '@/core/project/project';
 
 type Row = Repo & { repo: string };
 
+type Field = 'mention' | 'private';
+
+const col = { mention: 'w-[72px]', private: 'w-[56px]' } as const;
+
 export function RepoIngestPanel() {
   const [projects, setProjects] = useState<Row[] | null>(null);
   const [search, setSearch] = useState('');
@@ -19,29 +23,24 @@ export function RepoIngestPanel() {
       .catch(() => toast.error('Erro ao carregar repos'));
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!projects) return [];
+  const groups = useMemo(() => {
     const q = search.toLowerCase();
-    if (!q) return projects;
-    return projects.filter(
-      (p) => p.repo.toLowerCase().includes(q) || p.title.toLowerCase().includes(q),
-    );
-  }, [projects, search]);
-
-  const grouped = useMemo(() => {
     const map = new Map<string, Row[]>();
-    for (const p of filtered) {
-      const org = p.repo.split('/')[0];
-      if (!map.has(org)) map.set(org, []);
-      map.get(org)!.push(p);
+    for (const p of projects ?? []) {
+      if (q && !p.repo.toLowerCase().includes(q) && !p.title.toLowerCase().includes(q)) continue;
+      const owner = p.repo.split('/')[0];
+      map.set(owner, [...(map.get(owner) ?? []), p]);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered]);
+  }, [projects, search]);
 
-  const toggle = async (project: Row, field: 'mention' | 'private', value: boolean) => {
+  const toggle = async (project: Row, field: Field, value: boolean) => {
     const key = `${project.id}-${field}`;
+    const flip = (v: boolean) =>
+      setProjects((ps) => ps?.map((p) => (p.id === project.id ? { ...p, [field]: v } : p)) ?? null);
+
     setUpdating((u) => new Set([...u, key]));
-    setProjects((ps) => ps?.map((p) => (p.id === project.id ? { ...p, [field]: value } : p)) ?? null);
+    flip(value);
 
     const res = await fetch(`/api/projects/${project.id}`, {
       method: 'PUT',
@@ -57,81 +56,92 @@ export function RepoIngestPanel() {
 
     if (!res.ok) {
       toast.error('Erro ao salvar');
-      setProjects((ps) => ps?.map((p) => (p.id === project.id ? { ...p, [field]: !value } : p)) ?? null);
+      flip(!value);
     }
   };
 
-  if (!projects) {
-    return <p className="text-sm text-muted-foreground">carregando repos...</p>;
+  if (!projects) return <p className="px-5 py-4 text-sm text-muted-foreground">carregando repos...</p>;
+
+  if (!projects.length) {
+    return <p className="px-5 py-4 text-sm text-muted-foreground">nenhum projeto com repo GitHub.</p>;
   }
 
-  if (projects.length === 0) {
-    return <p className="text-sm text-muted-foreground">nenhum projeto com repo GitHub.</p>;
-  }
-
-  const COL = { mention: 'w-[68px]', private: 'w-[52px]' } as const;
+  const mentioned = projects.filter((p) => p.mention).length;
+  const mirrored = projects.filter((p) => p.private).length;
 
   return (
-    <div className="flex flex-col gap-3 min-w-0">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-        <Input
-          placeholder="filtrar repos..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8 h-9"
-        />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-col gap-2 border-b border-border px-5 py-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="filtrar repos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 pl-8"
+          />
+        </div>
+        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+          <p className="text-foreground/80">
+            {projects.length} repos · {mentioned} mencionados · {mirrored} privados espelhados
+          </p>
+          <p>
+            <strong className="font-medium text-foreground/80">mencionar</strong>: commits entram no post do dia.{' '}
+            <strong className="font-medium text-foreground/80">privado</strong>: espelha o repo privado no ingest.
+          </p>
+        </div>
       </div>
 
-      {grouped.length === 0 ? (
-        <p className="text-sm text-muted-foreground">nenhum resultado.</p>
-      ) : (
-        <div className="relative flex flex-col gap-2 max-h-72 overflow-y-auto overflow-x-hidden">
-          <div className="sticky top-0 z-10 flex items-center px-3 py-1 bg-card border-b border-border">
-            <span className="flex-1 min-w-0" />
-            <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
-              <span className={`${COL.mention} text-center`}>mencionar</span>
-              <span className={`${COL.private} text-center`}>privado</span>
-            </div>
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 pb-4">
+        <div className="sticky top-0 z-10 flex items-center bg-popover py-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1">repo</span>
+          <div className="flex shrink-0 items-center gap-3 pr-3">
+            <span className={`${col.mention} text-center`}>mencionar</span>
+            <span className={`${col.private} text-center`}>privado</span>
           </div>
+        </div>
 
-          {grouped.map(([org, items]) => (
-            <div key={org} className="flex flex-col gap-0.5">
-              <p className="text-xs font-medium text-muted-foreground px-1">{org}</p>
-              <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
-                {items.map((p) => {
-                  const name = p.repo.split('/')[1] ?? p.repo;
-                  return (
+        {!groups.length ? (
+          <p className="py-2 text-sm text-muted-foreground">nenhum resultado.</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {groups.map(([owner, items]) => (
+              <div key={owner} className="flex flex-col gap-1">
+                <p className="px-1 text-xs font-medium text-muted-foreground">
+                  {owner} <span className="opacity-60">· {items.length}</span>
+                </p>
+                <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+                  {items.map((p) => (
                     <div key={p.id} className="flex items-center gap-3 px-3 py-2">
-                      <span className="flex-1 min-w-0 text-sm font-mono truncate" title={p.repo}>
-                        {name}
+                      <span className="min-w-0 flex-1 truncate font-mono text-sm" title={p.repo}>
+                        {p.repo.split('/')[1] ?? p.repo}
                       </span>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className={`${COL.mention} flex justify-center`}>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className={`${col.mention} flex justify-center`}>
                           <Switch
                             checked={p.mention}
                             onCheckedChange={(v) => toggle(p, 'mention', v)}
                             disabled={updating.has(`${p.id}-mention`)}
-                            aria-label="mencionar no post"
+                            aria-label={`mencionar ${p.repo} no post`}
                           />
                         </div>
-                        <div className={`${COL.private} flex justify-center`}>
+                        <div className={`${col.private} flex justify-center`}>
                           <Switch
                             checked={p.private}
                             onCheckedChange={(v) => toggle(p, 'private', v)}
                             disabled={updating.has(`${p.id}-private`)}
-                            aria-label="incluir privado"
+                            aria-label={`espelhar ${p.repo} privado`}
                           />
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
