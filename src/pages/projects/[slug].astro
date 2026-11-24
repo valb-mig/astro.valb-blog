@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
 import LanguageBadges from '../../components/LanguageBadges.astro';
+import OrgBadge from '../../components/OrgBadge.astro';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
@@ -21,6 +22,7 @@ const [html, posts] = await Promise.all([
   app.posts.list({ drafts: false, projects: [p.id] }),
 ]);
 const repoUrl = p.repo ? `https://github.com/${p.repo}` : null;
+const org = app.projects.org(p.repo);
 
 const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
@@ -61,6 +63,11 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
               </Button>
               <DeleteButton id={p.id} title={p.title} resource="projects" redirectTo="/projects" client:load />
             </div>
+          </div>
+        )}
+        {org && (
+          <div class="mb-2">
+            <OrgBadge org={org} />
           </div>
         )}
         <h1 class="mb-3 text-3xl font-semibold">{p.title}</h1>

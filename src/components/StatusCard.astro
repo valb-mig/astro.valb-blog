@@ -4,7 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { ExternalLink, Tag as TagIcon, Terminal } from 'lucide-react';
 import type { Card as Status } from '@/core/project/project';
 import { link, up, vital, type Level } from '@/core/project/vital';
+import { app } from '@/app';
 import LanguageBadges from './LanguageBadges.astro';
+import OrgBadge from './OrgBadge.astro';
 import { faviconUrl } from '../lib/icons';
 
 interface Props {
@@ -35,6 +37,7 @@ const dot: { [l in Level]: string } = {
 };
 
 const site = link(card);
+const org = app.projects.org(repo);
 const web = site != null;
 const health = vital(card);
 const online = up(code);
@@ -90,6 +93,7 @@ const short = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: 
     <LanguageBadges languages={languages} />
 
     <div class="flex flex-wrap items-center gap-2">
+      {org && <OrgBadge org={org} />}
       {ci && <Badge variant={variant[ci] ?? 'secondary'}>ci: {ci}</Badge>}
       {uptimeUrl && (
         <Badge variant={code == null ? 'outline' : online ? 'default' : 'destructive'}>

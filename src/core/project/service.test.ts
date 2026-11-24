@@ -83,4 +83,12 @@ describe('project service', () => {
     await projects.report('p', 'secret', { version: '1.0' });
     expect(rows.reports.get('p')).toEqual({ version: '1.0' });
   });
+
+  it('names the org of repos the user does not own', () => {
+    const withUser = new Service(rows, new Events(events), new Updates(news), (a, b) => a === b, 'Me');
+    expect(withUser.org('mindblow-org/site')).toBe('mindblow-org');
+    expect(withUser.org('me/blog')).toBeNull();
+    expect(withUser.org(null)).toBeNull();
+    expect(projects.org('mindblow-org/site')).toBeNull();
+  });
 });

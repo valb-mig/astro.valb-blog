@@ -42,7 +42,7 @@ const updates = new Updates(new UpdateRows(db));
 const settings = new Settings(new SettingRows(db));
 const events = new Events(new EventRows(db));
 const posts = new Posts(new PostRows(db), updates);
-const projects = new Projects(new ProjectRows(db), events, updates, equal);
+const projects = new Projects(new ProjectRows(db), events, updates, equal, env('GH_USERNAME') ?? null);
 const reactions = new Reactions(new ReactionRows(db), new Limiter(10, 60_000));
 
 export const app = {

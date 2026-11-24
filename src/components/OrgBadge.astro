@@ -1,0 +1,25 @@
+---
+interface Props {
+  org: string;
+}
+
+const { org } = Astro.props;
+---
+
+<a
+  href={`https://github.com/${org}`}
+  target="_blank"
+  rel="noopener"
+  title={`organização ${org}`}
+  class="inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/40 py-0.5 pr-1.5 pl-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+>
+  <img
+    src={`https://github.com/${org}.png?size=32`}
+    alt=""
+    width={16}
+    height={16}
+    loading="lazy"
+    class="size-4 shrink-0 rounded-sm"
+  />
+  <span class="truncate">{org}</span>
+</a>

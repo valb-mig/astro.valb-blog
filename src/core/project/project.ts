@@ -64,3 +64,8 @@ export type Card = Pick<Project, 'id' | 'slug' | 'title' | 'languages' | 'draft'
 export type Repo = Pick<Project, 'id' | 'title' | 'repo' | 'mention' | 'private'>;
 
 export type Key = { id: string } | { slug: string };
+
+export const org = (repo: string | null, user: string | null) => {
+  const owner = repo?.split('/')[0];
+  return owner && user && owner.toLowerCase() !== user.toLowerCase() ? owner : null;
+};
