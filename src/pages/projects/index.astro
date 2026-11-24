@@ -8,7 +8,11 @@ import { app } from '@/app';
 
 const admin = Astro.locals.admin;
 
-const [projects, pins] = await Promise.all([app.projects.list({ drafts: admin }), app.pins.list()]);
+const [projects, pins, seen] = await Promise.all([
+  app.projects.list({ drafts: admin }),
+  app.pins.list(),
+  app.events.seen(admin),
+]);
 
 const tags = [...new Set(projects.flatMap((p) => p.tags))].sort();
 
@@ -57,7 +61,13 @@ const sections = [
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {section.items.map((p, i) => (
             <div data-project-card data-title={p.title.toLowerCase()} data-tags={p.tags.join(' ')}>
-              <ProjectCard project={p} pinned={pins.includes(p.id)} admin={admin} delay={i * 80} />
+              <ProjectCard
+                project={p}
+                pinned={pins.includes(p.id)}
+                last={seen.get(p.repo?.toLowerCase() ?? '') ?? null}
+                admin={admin}
+                delay={i * 80}
+              />
             </div>
           ))}
         </div>
