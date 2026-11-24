@@ -168,4 +168,11 @@ describe('ingest run', () => {
     expect(catalog.langs.size).toBe(0);
     expect(posts.items.find((p) => p.slug === 'atividade-2026-11-20')?.content).toContain('me/blog');
   });
+
+  it('filters forks by author, since their history has other people commits', async () => {
+    source.mine = [remote('me/blog'), remote('me/chromium', { fork: true })];
+    await ingest.run(date, false, 'local');
+    expect(log.calls.find((c) => c.repo === 'me/chromium')?.authors).toEqual(['me@example.com']);
+    expect(log.calls.find((c) => c.repo === 'me/blog')?.authors).toBeUndefined();
+  });
 });
