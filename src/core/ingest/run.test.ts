@@ -159,4 +159,13 @@ describe('ingest run', () => {
     await expect(ingest.run(date, false, 'local')).rejects.toThrow('boom');
     expect(journal.runs[0].outcome).toEqual({ status: 'error', created: 0, fallback: false, error: 'boom' });
   });
+
+  it('skips the project sync when asked, for backfills', async () => {
+    source.mine = [remote('me/blog')];
+    log.commitsBy.set('me/blog', [commit('me/blog', 'a1', 'feat: x')]);
+    await ingest.run(date, false, 'backfill', false);
+    expect(catalog.seeds).toHaveLength(0);
+    expect(catalog.langs.size).toBe(0);
+    expect(posts.items.find((p) => p.slug === 'atividade-2026-11-20')?.content).toContain('me/blog');
+  });
 });

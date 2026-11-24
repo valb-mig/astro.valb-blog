@@ -5,16 +5,17 @@ import type { Fresh, Log as Port } from '@/core/ingest/port';
 
 const run = promisify(execFile);
 
-const depth = '100';
-
 const sep = '\x1f';
 
 export class Log implements Port {
   private env: NodeJS.ProcessEnv;
 
+  private fetched = new Set<string>();
+
   constructor(
     token: string,
     private cache: string,
+    private depth = 100,
   ) {
     this.env = {
       ...process.env,
@@ -62,12 +63,15 @@ export class Log implements Port {
   private async mirror(repo: string): Promise<string> {
     const dir = `${this.cache}${repo.replace('/', '__')}.git`;
     const url = `https://github.com/${repo}.git`;
+    if (this.fetched.has(dir)) return dir;
+    const depth = String(this.depth);
     if (existsSync(dir)) {
       await run('git', ['--git-dir', dir, 'remote', 'set-url', 'origin', url]);
       await run('git', ['--git-dir', dir, 'fetch', '--depth', depth, 'origin', '+refs/heads/*:refs/heads/*'], { env: this.env });
     } else {
       await run('git', ['clone', '--bare', '--depth', depth, url, dir], { env: this.env });
     }
+    this.fetched.add(dir);
     return dir;
   }
 }

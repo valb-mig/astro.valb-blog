@@ -34,10 +34,10 @@ type Result = { created: number; fallback: boolean };
 export class Ingest {
   constructor(private d: Deps) {}
 
-  async run(date: string, force: boolean, trigger: string): Promise<void> {
+  async run(date: string, force: boolean, trigger: string, sync = true): Promise<void> {
     const id = await this.d.journal.start(date, trigger);
     try {
-      await this.d.journal.finish(id, { status: 'success', error: null, ...(await this.day(date, force)) });
+      await this.d.journal.finish(id, { status: 'success', error: null, ...(await this.day(date, force, sync)) });
     } catch (err) {
       await this.d.journal.finish(id, { status: 'error', created: 0, fallback: false, error: reason(err) });
       throw err;
@@ -48,7 +48,7 @@ export class Ingest {
     return owner(repo) === this.d.user.toLowerCase();
   }
 
-  private async day(date: string, force: boolean): Promise<Result> {
+  private async day(date: string, force: boolean, refresh: boolean): Promise<Result> {
     const { source, sync, catalog, ledger, posts } = this.d;
 
     const owned = await source.owned();
@@ -68,10 +68,12 @@ export class Ingest {
     if (extra.size) console.log(`Private repos in ingest: ${[...extra].join(', ')}`);
     if (quiet.size) console.log(`Repos left out of the post: ${[...quiet].join(', ')}`);
 
-    await sync.projects(remotes);
-    const current = await catalog.tracked();
-    await sync.languages(current);
-    await sync.health(current);
+    if (refresh) {
+      await sync.projects(remotes);
+      const current = await catalog.tracked();
+      await sync.languages(current);
+      await sync.health(current);
+    }
 
     const loud = (e: { repo: string }) => !quiet.has(e.repo);
     const events = await this.collect(all, date, authors);

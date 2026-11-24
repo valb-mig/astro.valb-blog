@@ -1,12 +1,37 @@
 import { ingest } from '../src/app/ingest';
 
-const arg = process.argv.find((a) => a.startsWith('--date='));
-const date = arg ? arg.slice('--date='.length) : new Date().toISOString().slice(0, 10);
-if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Invalid --date: "${date}" (expected YYYY-MM-DD)`);
+const day = /^\d{4}-\d{2}-\d{2}$/;
 
-ingest()
-  .run(date, process.argv.includes('--force'), process.env.GITHUB_EVENT_NAME ?? 'local')
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+const flag = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+
+const valid = (name: string, value: string) => {
+  if (!day.test(value)) throw new Error(`Invalid --${name}: "${value}" (expected YYYY-MM-DD)`);
+  return value;
+};
+
+const days = (from: string, to: string) => {
+  const out: string[] = [];
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
+};
+
+const from = flag('from');
+const dates = from
+  ? days(valid('from', from), valid('to', flag('to') ?? new Date().toISOString().slice(0, 10)))
+  : [valid('date', flag('date') ?? new Date().toISOString().slice(0, 10))];
+
+const force = process.argv.includes('--force');
+const trigger = process.env.GITHUB_EVENT_NAME ?? (from ? 'backfill' : 'local');
+const pipeline = ingest(from ? 1000 : 100);
+
+(async () => {
+  for (const [i, date] of dates.entries()) {
+    console.log(`\n== ${date}`);
+    await pipeline.run(date, force, trigger, i === 0);
+  }
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
