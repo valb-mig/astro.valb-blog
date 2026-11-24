@@ -19,7 +19,7 @@ const p = await app.projects.find({ slug: Astro.params.slug! }, admin);
 if (!p) return Astro.redirect('/projects');
 
 const [html, posts] = await Promise.all([
-  render(p.content),
+  render(p.content, p.repo),
   app.posts.list({ drafts: false, projects: [p.id] }),
 ]);
 const repoUrl = p.repo ? `https://github.com/${p.repo}` : null;
