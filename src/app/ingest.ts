@@ -41,7 +41,10 @@ export const ingest = (depth = 100) => {
       pick(
         app.settings,
         { groq: env('GROQ_API_KEY'), gemini: env('GEMINI_API_KEY') },
-        { groq: (key) => new Groq(key), gemini: (key) => new Gemini(key) },
+        {
+          groq: (key) => new Groq(key, env('GROQ_MODEL')),
+          gemini: (key) => new Gemini(key, env('GEMINI_MODEL')),
+        },
       ),
   });
 };

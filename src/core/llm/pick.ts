@@ -2,6 +2,7 @@ import { Fault } from '../error';
 import type { Service as Settings } from '../setting/service';
 import { Fallback } from './fallback';
 import type { Llm } from './port';
+import { Retry } from './retry';
 
 export type Keys = { groq?: string; gemini?: string };
 
@@ -12,11 +13,11 @@ export const pick = async (settings: Settings, keys: Keys, make: Makers): Promis
 
   if (provider === 'gemini') {
     if (!keys.gemini) throw new Fault('config', 'llm_provider is "gemini" but GEMINI_API_KEY is not set.');
-    const gemini = make.gemini(keys.gemini);
+    const gemini = new Retry(make.gemini(keys.gemini));
     const spare = ((await settings.get('llm_fallback_enabled')) ?? 'true') === 'true' ? keys.groq : undefined;
-    return spare ? new Fallback(gemini, () => make.groq(spare)) : gemini;
+    return spare ? new Fallback(gemini, () => new Retry(make.groq(spare))) : gemini;
   }
 
   if (!keys.groq) throw new Fault('config', 'llm_provider is "groq" but GROQ_API_KEY is not set.');
-  return make.groq(keys.groq);
+  return new Retry(make.groq(keys.groq));
 };
