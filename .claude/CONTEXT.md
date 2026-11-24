@@ -262,6 +262,13 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   A bolinha de busca flutuante (`z-[110]`, acima da moldura de admin) some
   enquanto um modal está aberto (`in-data-[scroll-locked]:hidden`) — antes
   cobria os switches no mobile.
+- **Chip da org nos projetos** (2026-11-24): projeto cujo repo não é do
+  `GH_USERNAME` mostra um chip com avatar e nome do dono (`OrgBadge.astro`,
+  regra em `core/project/project.ts` `org()`, exposta como
+  `app.projects.org(repo)`) — no card, na página do projeto e no status do
+  /about. Resolve projetos homônimos de orgs diferentes (ex.: dois `site`).
+  Avatar direto de `github.com/<org>.png`, sem API. Sem `GH_USERNAME` no
+  runtime, os chips simplesmente não aparecem.
 - **`/atividade` público só mostra evento linkado a post** (2026-10-09):
   antes listava todo `source_events` pra visitante, vazando título de commit
   de repo privado / com "mencionar" desligado. Agora visitante usa
