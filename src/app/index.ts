@@ -5,6 +5,7 @@ import { Service as Home } from '@/core/home';
 import { Service as Orgs } from '@/core/ingest/orgs';
 import { Limiter } from '@/core/limit';
 import { Service as Posts } from '@/core/post/service';
+import { Gallery } from '@/core/project/gallery';
 import { Pins } from '@/core/project/pins';
 import { Service as Projects } from '@/core/project/service';
 import { Service as Reactions } from '@/core/reaction/service';
@@ -15,6 +16,7 @@ import { Service as Updates } from '@/core/update/service';
 import { equal, Hmac } from '@/infra/crypto';
 import { Dispatch } from '@/infra/github/dispatch';
 import { Hub } from '@/infra/github/hub';
+import { Bucket } from '@/infra/supabase/bucket';
 import { Catalog } from '@/infra/supabase/catalog';
 import { Events as EventRows } from '@/infra/supabase/events';
 import { Posts as PostRows } from '@/infra/supabase/posts';
@@ -44,7 +46,8 @@ const updates = new Updates(new UpdateRows(db));
 const settings = new Settings(new SettingRows(db));
 const events = new Events(new EventRows(db));
 const posts = new Posts(new PostRows(db), updates);
-const projects = new Projects(new ProjectRows(db), events, updates, equal, env('GH_USERNAME') ?? null);
+const projectRows = new ProjectRows(db);
+const projects = new Projects(projectRows, events, updates, equal, env('GH_USERNAME') ?? null);
 const pins = new Pins(settings);
 const reactions = new Reactions(new ReactionRows(db), new Limiter(10, 60_000));
 
@@ -56,6 +59,7 @@ export const app = {
   updates,
   settings,
   pins,
+  gallery: new Gallery(projectRows, new Bucket(db)),
   home: new Home(posts, projects, events, pins),
   stack: new Stack(new StackRows(db), updates),
   auth: new Auth(new Hmac(secret, age), user && pass ? { user, pass } : null, new Limiter(5, 15 * 60_000)),

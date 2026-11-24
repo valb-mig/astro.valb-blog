@@ -15,6 +15,8 @@ export type Health = {
   deployAt: string | null;
 };
 
+export type Image = { path: string; url: string };
+
 export type Summary = {
   id: string;
   slug: string;
@@ -27,6 +29,7 @@ export type Summary = {
   draft: boolean;
   languages: Languages | null;
   posts: number;
+  images: Image[];
 };
 
 export type Project = Omit<Summary, 'posts'> & {
@@ -64,6 +67,9 @@ export type Card = Pick<Project, 'id' | 'slug' | 'title' | 'languages' | 'draft'
 export type Repo = Pick<Project, 'id' | 'title' | 'repo' | 'mention' | 'private'>;
 
 export type Key = { id: string } | { slug: string };
+
+export const cover = (p: Pick<Summary, 'images' | 'repo'>) =>
+  p.images[0]?.url ?? (p.repo ? `https://opengraph.githubassets.com/1/${p.repo}` : null);
 
 export const org = (repo: string | null, user: string | null) => {
   const owner = repo?.split('/')[0];

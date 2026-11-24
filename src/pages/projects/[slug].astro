@@ -3,12 +3,13 @@ import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
 import LanguageBadges from '../../components/LanguageBadges.astro';
 import OrgBadge from '../../components/OrgBadge.astro';
+import { ProjectGallery } from '@/components/ProjectGallery';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
 import { app } from '@/app';
-import type { Status } from '@/core/project/project';
+import { cover, type Status } from '@/core/project/project';
 import { render } from '../../lib/markdown';
 
 const admin = Astro.locals.admin;
@@ -23,6 +24,7 @@ const [html, posts] = await Promise.all([
 ]);
 const repoUrl = p.repo ? `https://github.com/${p.repo}` : null;
 const org = app.projects.org(p.repo);
+const banner = cover(p);
 
 const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
@@ -48,6 +50,15 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
 >
   <div class="mx-auto max-w-4xl px-6 py-16 md:grid md:grid-cols-[1fr_220px] md:gap-10">
     <div class="max-w-2xl">
+
+      {banner && (
+        <img
+          src={banner}
+          alt=""
+          onerror="this.remove()"
+          class="mb-8 aspect-[2/1] w-full rounded-xl border border-border object-cover"
+        />
+      )}
 
       <header class="mb-10 border-b border-border pb-8">
         {admin && (
@@ -93,6 +104,13 @@ const dateStr = new Date(p.date).toLocaleDateString('pt-BR', {
           <LanguageBadges languages={p.languages} />
         </div>
       </header>
+
+      {p.images.length > 1 && (
+        <section class="mb-12">
+          <h2 class="mb-4 text-sm font-medium text-muted-foreground">imagens</h2>
+          <ProjectGallery images={p.images.map((i) => i.url)} title={p.title} client:visible />
+        </section>
+      )}
 
       {p.content && (
         <div class="prose prose-invert prose-sm mb-16 max-w-none" set:html={html} />

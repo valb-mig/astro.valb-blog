@@ -3,6 +3,7 @@ import type {
   Card,
   Deploy,
   Health,
+  Image,
   Input,
   Key,
   Languages,
@@ -11,9 +12,10 @@ import type {
   Status,
   Summary,
 } from '@/core/project/project';
+import { url } from './bucket';
 import { counted, defined, must, type Db } from './client';
 
-const brief = 'id,slug,title,description,date,tags,status,repo,draft,languages';
+const brief = 'id,slug,title,description,date,tags,status,repo,draft,languages,images';
 
 const card =
   'id,slug,title,languages,draft,repo,uptime_url,ci_status,ci_checked_at,latest_release,latest_release_at,last_status_code,last_uptime_check_at,deploy_status,deploy_status_at';
@@ -31,6 +33,7 @@ type Row = {
   draft: boolean;
   parent_project_id: string | null;
   languages: Languages | null;
+  images: string[] | null;
   ingest_private: boolean;
   mention_allowed: boolean;
   uptime_url: string | null;
@@ -58,7 +61,7 @@ const health = (r: Partial<Row>): Health => ({
   deployAt: r.deploy_status_at ?? null,
 });
 
-const base = (r: Row): Omit<Summary, 'posts'> => ({
+const base = (r: Row, images: Image[]): Omit<Summary, 'posts'> => ({
   id: r.id,
   slug: r.slug,
   title: r.title,
@@ -69,12 +72,11 @@ const base = (r: Row): Omit<Summary, 'posts'> => ({
   repo: r.repo,
   draft: r.draft,
   languages: r.languages,
+  images,
 });
 
-const summary = (r: Row, posts: number): Summary => ({ ...base(r), posts });
-
-const project = (r: Row): Project => ({
-  ...base(r),
+const project = (r: Row, images: Image[]): Project => ({
+  ...base(r, images),
   content: r.content ?? '',
   parentId: r.parent_project_id,
   private: r.ingest_private,
@@ -107,6 +109,10 @@ const row = (i: Partial<Input>) =>
 export class Projects implements Port {
   constructor(private db: Db) {}
 
+  private images(r: Pick<Row, 'images'>): Image[] {
+    return (r.images ?? []).map((path) => ({ path, url: url(this.db, path) }));
+  }
+
   async list({ drafts, status, limit }: Query): Promise<Summary[]> {
     let q = this.db.from('projects').select(brief).order('date', { ascending: false });
     if (!drafts) q = q.eq('draft', false);
@@ -115,7 +121,7 @@ export class Projects implements Port {
       must(await (limit ? q.limit(limit) : q)) as Row[],
       this.counts(),
     ]);
-    return rows.map((r) => summary(r, counts.get(r.id) ?? 0));
+    return rows.map((r) => ({ ...base(r, this.images(r)), posts: counts.get(r.id) ?? 0 }));
   }
 
   async find(key: Key, drafts: boolean): Promise<Project | null> {
@@ -123,7 +129,7 @@ export class Projects implements Port {
     q = 'id' in key ? q.eq('id', key.id) : q.eq('slug', key.slug);
     if (!drafts) q = q.eq('draft', false);
     const r = must(await q.maybeSingle()) as Row | null;
-    return r ? project(r) : null;
+    return r ? project(r, this.images(r)) : null;
   }
 
   async cards(drafts: boolean): Promise<Card[]> {
@@ -159,11 +165,13 @@ export class Projects implements Port {
   }
 
   async create(input: Input): Promise<Project> {
-    return project(must(await this.db.from('projects').insert(row(input)).select().single()) as Row);
+    const r = must(await this.db.from('projects').insert(row(input)).select().single()) as Row;
+    return project(r, this.images(r));
   }
 
   async update(id: string, input: Partial<Input>): Promise<Project> {
-    return project(must(await this.db.from('projects').update(row(input)).eq('id', id).select().single()) as Row);
+    const r = must(await this.db.from('projects').update(row(input)).eq('id', id).select().single()) as Row;
+    return project(r, this.images(r));
   }
 
   async remove(id: string): Promise<void> {
@@ -186,6 +194,16 @@ export class Projects implements Port {
 
   async count(): Promise<number> {
     return counted(await this.db.from('projects').select('*', { count: 'exact', head: true }));
+  }
+
+  async paths(id: string): Promise<string[] | null> {
+    const r = must(await this.db.from('projects').select('images').eq('id', id).maybeSingle()) as Pick<Row, 'images'> | null;
+    return r ? (r.images ?? []) : null;
+  }
+
+  async gallery(id: string, paths: string[]): Promise<Image[]> {
+    const r = must(await this.db.from('projects').update({ images: paths }).eq('id', id).select('images').single()) as Pick<Row, 'images'>;
+    return this.images(r);
   }
 
   private async counts(): Promise<Map<string, number>> {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DeleteButton } from '@/components/DeleteButton';
 import { SelectField } from '@/components/SelectField';
 import { SwitchField } from '@/components/SwitchField';
+import { ImageManager } from '@/components/ImageManager';
 import { app } from '@/app';
 
 const p = await app.projects.find({ id: Astro.params.id! }, Astro.locals.admin);
@@ -47,6 +48,12 @@ const statusOptions = [
     <div class="flex flex-col gap-1.5">
       <Label htmlFor="f-description">descrição *</Label>
       <Input id="f-description" type="text" required value={p.description} />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <Label>imagens</Label>
+      <p class="text-xs text-muted-foreground">salvas na hora, independente do "salvar alterações".</p>
+      <ImageManager project={p.id} images={p.images} client:load />
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
