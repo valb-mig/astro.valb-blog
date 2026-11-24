@@ -71,6 +71,10 @@ export class Hub implements Port {
     }
   }
 
+  async languages(name: string): Promise<{ [lang: string]: number }> {
+    return (await this.kit.rest.repos.listLanguages(split(name))).data;
+  }
+
   async readme(name: string): Promise<string> {
     try {
       const { data } = await this.kit.rest.repos.getReadme(split(name));

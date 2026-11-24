@@ -208,4 +208,7 @@ export class MemoryHub implements Hub {
   async readme(name: string) {
     return `# ${name}`;
   }
+  async languages() {
+    return { Kotlin: 3, Shell: 1 };
+  }
 }

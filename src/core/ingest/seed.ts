@@ -1,3 +1,4 @@
+import type { Languages } from '../project/project';
 import type { Catalog, Remote } from './port';
 
 export const slugify = (name: string) =>
@@ -7,6 +8,12 @@ export const slugify = (name: string) =>
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+
+export const share = (bytes: { [lang: string]: number }): Languages | null => {
+  const total = Object.values(bytes).reduce((sum, b) => sum + b, 0);
+  if (!total) return null;
+  return Object.fromEntries(Object.entries(bytes).map(([lang, b]) => [lang, Math.round((b / total) * 1000) / 10]));
+};
 
 export class Seeder {
   constructor(
@@ -18,7 +25,7 @@ export class Seeder {
     return (await this.catalog.tracked()).some((t) => t.repo?.toLowerCase() === repo.toLowerCase());
   }
 
-  async seed(r: Remote, readme: string): Promise<string> {
+  async seed(r: Remote, readme: string, languages: Languages | null = null): Promise<string> {
     const slug = await this.slug(r.name);
     await this.catalog.seed({
       slug,
@@ -29,6 +36,7 @@ export class Seeder {
       tags: r.topics,
       status: r.archived ? 'archived' : 'active',
       repo: r.repo,
+      languages,
     });
     return slug;
   }

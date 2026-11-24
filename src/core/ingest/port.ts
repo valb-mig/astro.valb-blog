@@ -51,6 +51,7 @@ export type Seed = {
   tags: string[];
   status: Status;
   repo: string;
+  languages: Languages | null;
 };
 
 export interface Catalog {

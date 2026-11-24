@@ -8,6 +8,7 @@ export interface Hub {
   repos(org: string): Promise<Repo[]>;
   repo(name: string): Promise<Repo | null>;
   readme(name: string): Promise<string>;
+  languages(name: string): Promise<{ [lang: string]: number }>;
 }
 
 export interface Trigger {
