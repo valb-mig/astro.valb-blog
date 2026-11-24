@@ -97,7 +97,7 @@ export class Service {
     try {
       if (await this.seeder.has(name)) return null;
       const remote = await this.hub.repo(name);
-      if (!remote || remote.private) return null;
+      if (!remote || remote.private || remote.fork) return null;
       const [readme, bytes] = await Promise.all([this.hub.readme(name), this.hub.languages(name).catch(() => ({}))]);
       return await this.seeder.seed(remote, readme, share(bytes));
     } catch (err) {

@@ -15,6 +15,7 @@ export const remote = (repo: string, over: Partial<Remote> = {}): Remote => ({
   createdAt: '2025-01-01T00:00:00Z',
   topics: [],
   archived: false,
+  fork: false,
   ...over,
 });
 

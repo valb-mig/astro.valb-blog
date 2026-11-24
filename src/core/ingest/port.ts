@@ -9,6 +9,7 @@ export type Remote = {
   createdAt: string | null;
   topics: string[];
   archived: boolean;
+  fork: boolean;
 };
 
 export type Fresh = Omit<Event, 'id' | 'createdAt'>;

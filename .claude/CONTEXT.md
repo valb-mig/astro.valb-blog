@@ -315,6 +315,13 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   com trigger `backfill`. O ingest não precisa de escrita no GitHub: o
   `GH_READ_TOKEN` (`repo`, `read:org`) serve; sem `user:email`, o filtro de
   autor dos repos de org usa só os e-mails noreply.
+- **Fork nunca vira projeto** (2026-11-24): o sync criava projeto pra todo
+  repo público próprio, fork inclusive — fork aparecia em /projects como se
+  fosse projeto seu. `Remote.fork` agora barra a criação no sync e no toggle
+  de org (que mostra badge "fork"); os commits do fork continuam no ingest e
+  na atividade, porque são trabalho seu. Os 3 forks que já existiam
+  (`flecha-browser`, `html.json-tree-viewer`, `mde-download-`) viraram
+  rascunho, não foram apagados.
 - **Modelos de LLM configuráveis + retry** (2026-11-24): o Groq aposentou o
   `llama-3.3-70b-versatile` (404 `model_not_found`) — o default virou
   `openai/gpt-oss-120b` (aceita JSON mode), sobrescrevível por `GROQ_MODEL`;

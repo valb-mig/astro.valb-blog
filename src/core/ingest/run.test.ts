@@ -58,8 +58,8 @@ describe('ingest run', () => {
     });
   });
 
-  it('seeds projects for new public repos only and refreshes languages', async () => {
-    source.mine = [remote('me/blog'), remote('me/secret', { private: true })];
+  it('seeds projects for new public repos only, never forks, and refreshes languages', async () => {
+    source.mine = [remote('me/blog'), remote('me/secret', { private: true }), remote('me/chromium', { fork: true })];
     await ingest.run(date, false, 'local');
     expect(catalog.seeds.map((s) => s.slug)).toEqual(['blog']);
     expect(catalog.langs.get('p-blog')).toEqual({ TypeScript: 75, CSS: 25 });
