@@ -16,7 +16,7 @@ import { env } from './env';
 
 const cache = new URL('../../.ingest-cache/', import.meta.url).pathname;
 
-export const ingest = () => {
+export const ingest = (depth = 100) => {
   const token = env('GH_TOKEN');
   const user = env('GH_USERNAME');
   if (!token || !user) throw new Error('Missing env vars: GH_TOKEN, GH_USERNAME');
@@ -28,7 +28,7 @@ export const ingest = () => {
   return new Ingest({
     user,
     source,
-    log: new Log(token, cache),
+    log: new Log(token, cache, depth),
     sync: new Sync(source, catalog, new Probe()),
     catalog,
     ledger: new Ledger(db),
@@ -41,7 +41,10 @@ export const ingest = () => {
       pick(
         app.settings,
         { groq: env('GROQ_API_KEY'), gemini: env('GEMINI_API_KEY') },
-        { groq: (key) => new Groq(key), gemini: (key) => new Gemini(key) },
+        {
+          groq: (key) => new Groq(key, env('GROQ_MODEL')),
+          gemini: (key) => new Gemini(key, env('GEMINI_MODEL')),
+        },
       ),
   });
 };

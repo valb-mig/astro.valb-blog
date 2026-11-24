@@ -13,6 +13,7 @@ type Repo = {
   created_at?: string | null;
   topics?: string[];
   archived?: boolean;
+  fork?: boolean;
 };
 
 const remote = (r: Repo): Remote => ({
@@ -23,6 +24,7 @@ const remote = (r: Repo): Remote => ({
   createdAt: r.created_at ?? null,
   topics: r.topics ?? [],
   archived: r.archived ?? false,
+  fork: r.fork ?? false,
 });
 
 const split = (repo: string) => {

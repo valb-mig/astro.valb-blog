@@ -17,7 +17,7 @@ export class Sync {
   }
 
   async projects(remotes: Remote[]): Promise<void> {
-    const open = remotes.filter((r) => !r.private);
+    const open = remotes.filter((r) => !r.private && !r.fork);
     if (!open.length) return;
 
     const known = new Set((await this.catalog.tracked()).flatMap((t) => (t.repo ? [t.repo] : [])));

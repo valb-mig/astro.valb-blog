@@ -58,8 +58,8 @@ describe('ingest run', () => {
     });
   });
 
-  it('seeds projects for new public repos only and refreshes languages', async () => {
-    source.mine = [remote('me/blog'), remote('me/secret', { private: true })];
+  it('seeds projects for new public repos only, never forks, and refreshes languages', async () => {
+    source.mine = [remote('me/blog'), remote('me/secret', { private: true }), remote('me/chromium', { fork: true })];
     await ingest.run(date, false, 'local');
     expect(catalog.seeds.map((s) => s.slug)).toEqual(['blog']);
     expect(catalog.langs.get('p-blog')).toEqual({ TypeScript: 75, CSS: 25 });
@@ -158,5 +158,21 @@ describe('ingest run', () => {
     };
     await expect(ingest.run(date, false, 'local')).rejects.toThrow('boom');
     expect(journal.runs[0].outcome).toEqual({ status: 'error', created: 0, fallback: false, error: 'boom' });
+  });
+
+  it('skips the project sync when asked, for backfills', async () => {
+    source.mine = [remote('me/blog')];
+    log.commitsBy.set('me/blog', [commit('me/blog', 'a1', 'feat: x')]);
+    await ingest.run(date, false, 'backfill', false);
+    expect(catalog.seeds).toHaveLength(0);
+    expect(catalog.langs.size).toBe(0);
+    expect(posts.items.find((p) => p.slug === 'atividade-2026-11-20')?.content).toContain('me/blog');
+  });
+
+  it('filters forks by author, since their history has other people commits', async () => {
+    source.mine = [remote('me/blog'), remote('me/chromium', { fork: true })];
+    await ingest.run(date, false, 'local');
+    expect(log.calls.find((c) => c.repo === 'me/chromium')?.authors).toEqual(['me@example.com']);
+    expect(log.calls.find((c) => c.repo === 'me/blog')?.authors).toBeUndefined();
   });
 });

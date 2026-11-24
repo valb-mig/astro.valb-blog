@@ -141,6 +141,11 @@ function Repos({
                 arquivado
               </Badge>
             )}
+            {r.fork && (
+              <Badge variant="outline" className="shrink-0" title="fork: commits entram no ingest, mas não vira projeto">
+                fork
+              </Badge>
+            )}
             <Switch checked={r.enabled} onCheckedChange={(v) => toggle(r, v)} aria-label={`ingerir ${r.repo}`} />
           </label>
         ))}

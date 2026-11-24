@@ -14,6 +14,7 @@ type Raw = {
   created_at?: string | null;
   topics?: string[];
   archived?: boolean;
+  fork?: boolean;
   pushed_at?: string | null;
 };
 
@@ -25,6 +26,7 @@ const repo = (r: Raw): Repo => ({
   createdAt: r.created_at ?? null,
   topics: r.topics ?? [],
   archived: r.archived ?? false,
+  fork: r.fork ?? false,
   pushedAt: r.pushed_at ?? null,
 });
 

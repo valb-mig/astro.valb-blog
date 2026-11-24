@@ -34,10 +34,10 @@ type Result = { created: number; fallback: boolean };
 export class Ingest {
   constructor(private d: Deps) {}
 
-  async run(date: string, force: boolean, trigger: string): Promise<void> {
+  async run(date: string, force: boolean, trigger: string, sync = true): Promise<void> {
     const id = await this.d.journal.start(date, trigger);
     try {
-      await this.d.journal.finish(id, { status: 'success', error: null, ...(await this.day(date, force)) });
+      await this.d.journal.finish(id, { status: 'success', error: null, ...(await this.day(date, force, sync)) });
     } catch (err) {
       await this.d.journal.finish(id, { status: 'error', created: 0, fallback: false, error: reason(err) });
       throw err;
@@ -48,7 +48,7 @@ export class Ingest {
     return owner(repo) === this.d.user.toLowerCase();
   }
 
-  private async day(date: string, force: boolean): Promise<Result> {
+  private async day(date: string, force: boolean, refresh: boolean): Promise<Result> {
     const { source, sync, catalog, ledger, posts } = this.d;
 
     const owned = await source.owned();
@@ -57,24 +57,28 @@ export class Ingest {
     const open = new Set(remotes.filter((r) => !r.private).map((r) => r.repo));
     const born = new Map(remotes.map((r) => [r.repo, r.createdAt]));
     const hidden = new Set(orgs.filter((r) => r.private).map((r) => r.repo));
+    const forks = new Set(remotes.filter((r) => r.fork).map((r) => r.repo));
+    const mine = (repo: string) => this.own(repo) && !forks.has(repo);
 
     const tracked = await catalog.tracked();
     const extra = new Set(tracked.flatMap((t) => (t.private && t.repo && !open.has(t.repo) ? [t.repo] : [])));
     const quiet = new Set([...tracked.flatMap((t) => (!t.mention && t.repo ? [t.repo] : [])), ...hidden]);
     const all = new Set([...open, ...extra, ...hidden]);
-    const authors = [...all].some((r) => !this.own(r)) ? await source.emails() : [];
+    const authors = [...all].some((r) => !mine(r)) ? await source.emails() : [];
 
     if (orgs.length) console.log(`Org repos in ingest: ${orgs.map((r) => r.repo).join(', ')}`);
     if (extra.size) console.log(`Private repos in ingest: ${[...extra].join(', ')}`);
     if (quiet.size) console.log(`Repos left out of the post: ${[...quiet].join(', ')}`);
 
-    await sync.projects(remotes);
-    const current = await catalog.tracked();
-    await sync.languages(current);
-    await sync.health(current);
+    if (refresh) {
+      await sync.projects(remotes);
+      const current = await catalog.tracked();
+      await sync.languages(current);
+      await sync.health(current);
+    }
 
     const loud = (e: { repo: string }) => !quiet.has(e.repo);
-    const events = await this.collect(all, date, authors);
+    const events = await this.collect(all, date, authors, mine);
     const known = await ledger.known(events);
     const unseen = events.filter((e) => !known.has(key(e)));
     const created = unseen.length;
@@ -121,10 +125,15 @@ export class Ingest {
     return out;
   }
 
-  private async collect(repos: Set<string>, date: string, authors: string[]): Promise<Fresh[]> {
+  private async collect(
+    repos: Set<string>,
+    date: string,
+    authors: string[],
+    mine: (repo: string) => boolean,
+  ): Promise<Fresh[]> {
     const out: Fresh[] = [];
     for (const repo of repos) {
-      const own = this.own(repo);
+      const own = mine(repo);
       if (!own && !authors.length) {
         console.warn(`No author email to filter by — skipping ${repo}.`);
         continue;

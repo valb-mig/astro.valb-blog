@@ -16,6 +16,7 @@ describe('ingest orgs', () => {
     hub.orgs.set('Acme', [
       { ...remote('Acme/old', { description: 'legacy', topics: ['php'] }), pushedAt: '2026-01-01' },
       { ...remote('Acme/new', { private: true }), pushedAt: '2026-11-01' },
+      { ...remote('Acme/fork', { fork: true }), pushedAt: '2026-10-01' },
     ]);
     catalog = new FakeCatalog();
     orgs = new Service(new Settings(rows), hub, catalog);
@@ -59,6 +60,7 @@ describe('ingest orgs', () => {
     await orgs.toggle('Acme/old', true);
     expect((await orgs.repos('Acme')).map((r) => [r.name, r.enabled])).toEqual([
       ['new', false],
+      ['fork', false],
       ['old', true],
     ]);
   });
@@ -74,6 +76,7 @@ describe('ingest orgs', () => {
   it('never creates projects for private repos, existing projects or when turning off', async () => {
     await orgs.add('acme');
     expect((await orgs.toggle('Acme/new', true)).project).toBeNull();
+    expect((await orgs.toggle('Acme/fork', true)).project).toBeNull();
     await orgs.toggle('Acme/old', true);
     expect((await orgs.toggle('Acme/old', false)).project).toBeNull();
     expect((await orgs.toggle('Acme/old', true)).project).toBeNull();
