@@ -304,6 +304,12 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   qualquer status; o resto são os ativos por último commit, depois por data.
   Visitante só vê commit mencionável no "trabalhando em", mesma regra do
   /atividade.
+- **Nada de `<Button asChild>` em `.astro`** (2026-11-24): num arquivo
+  `.astro` o filho do componente React chega como HTML estático, o `Slot` do
+  Radix não consegue mesclar as classes do botão e o `<a>` sai cru (sem
+  padding/hover, SVG em 24px — era o ícone de RSS gigante no header). Em
+  `.astro`, link com cara de botão é `<a class={buttonVariants({...})}>`;
+  `asChild` só dentro de componente React.
 - **Gotcha do dev server**: rodar `pnpm check`/`pnpm test` com o `pnpm dev` de
   pé faz o Vite re-otimizar dependências ("vite config has changed") e a
   página aberta passa a falhar a hidratação de todas as islands ("Failed to

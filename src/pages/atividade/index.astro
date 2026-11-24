@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import ActivityItem from '../../components/ActivityItem.astro';
 import ActivityHeatmap from '../../components/ActivityHeatmap.astro';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { SelectField } from '@/components/SelectField';
 import { app } from '@/app';
 
@@ -81,13 +81,17 @@ function format(day: string): string {
 
     {feed.pages > 1 && (
       <div class="mt-10 flex items-center justify-between border-t border-border pt-6">
-        <Button variant="outline" size="sm" disabled={page <= 1} asChild={page > 1}>
-          {page > 1 ? <a href={href(page - 1)}>← anterior</a> : <span>← anterior</span>}
-        </Button>
+        {page > 1 ? (
+          <a href={href(page - 1)} class={buttonVariants({ variant: 'outline', size: 'sm' })}>← anterior</a>
+        ) : (
+          <Button variant="outline" size="sm" disabled>← anterior</Button>
+        )}
         <span class="text-xs text-muted-foreground">página {page} de {feed.pages}</span>
-        <Button variant="outline" size="sm" disabled={page >= feed.pages} asChild={page < feed.pages}>
-          {page < feed.pages ? <a href={href(page + 1)}>próxima →</a> : <span>próxima →</span>}
-        </Button>
+        {page < feed.pages ? (
+          <a href={href(page + 1)} class={buttonVariants({ variant: 'outline', size: 'sm' })}>próxima →</a>
+        ) : (
+          <Button variant="outline" size="sm" disabled>próxima →</Button>
+        )}
       </div>
     )}
   </div>

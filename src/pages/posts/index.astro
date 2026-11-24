@@ -1,8 +1,9 @@
 ---
+import { cn } from '@/lib/utils';
 import Base from '../../layouts/Base.astro';
 import PostCard from '../../components/PostCard.astro';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { app } from '@/app';
 
@@ -41,12 +42,10 @@ const filtered = tag ? posts.filter((p) => p.tags.includes(tag)) : posts;
           </p>
         </div>
         {admin && (
-          <Button asChild size="sm" className="shrink-0">
-            <a href="/admin/posts/new" class="flex items-center gap-1">
-              <Plus size={14} />
-              novo post
-            </a>
-          </Button>
+<a href="/admin/posts/new" class={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+            <Plus size={14} />
+            novo post
+          </a>
         )}
       </div>
 

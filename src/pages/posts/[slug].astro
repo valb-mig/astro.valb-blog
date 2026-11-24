@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { ReactionBar } from '@/components/ReactionBar';
 import { DeleteButton } from '@/components/DeleteButton';
 import { Pencil } from 'lucide-react';
@@ -49,12 +49,10 @@ const siblings = selected ? (related.byProject[selected.id] ?? []) : related.all
             {post.draft && <Badge variant="outline">draft</Badge>}
             <span class="text-muted-foreground">visão admin</span>
             <div class="ml-auto flex items-center gap-1">
-              <Button variant="ghost" size="sm" asChild>
-                <a href={`/admin/posts/${post.id}`} class="flex items-center gap-1">
-                  <Pencil size={13} />
-                  editar
-                </a>
-              </Button>
+              <a href={`/admin/posts/${post.id}`} class={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                <Pencil size={13} />
+                editar
+              </a>
               <DeleteButton id={post.id} title={post.title} resource="posts" redirectTo="/posts" client:load />
             </div>
           </div>
