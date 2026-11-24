@@ -44,12 +44,9 @@ const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
   )}
   <CardContent className="flex h-full flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
-      <div class="flex min-w-0 items-center gap-2">
-        {org && <OrgBadge org={org} />}
-        <a href={`/projects/${slug}`} class="group min-w-0 truncate">
-          <span class="text-base font-semibold transition-colors group-hover:text-foreground/80">{title}</span>
-        </a>
-      </div>
+      <a href={`/projects/${slug}`} class="group min-w-0 truncate">
+        <span class="text-base font-semibold transition-colors group-hover:text-foreground/80">{title}</span>
+      </a>
       <div class="flex shrink-0 items-center gap-1.5">
         {pinned && !admin && <Pin size={13} className="text-amber-400" aria-label="fixado" />}
         {draft && <Badge variant="outline">draft</Badge>}
@@ -69,6 +66,12 @@ const variant: { [s in Status]: 'default' | 'secondary' | 'outline' } = {
         )}
       </div>
     </div>
+
+    {org && (
+      <div class="-mt-1 flex">
+        <OrgBadge org={org} />
+      </div>
+    )}
 
     <p class="line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
 
