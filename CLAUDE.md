@@ -70,7 +70,7 @@ Admin isn't a separate app — browsing pages (posts, projects, atividade, about
 | `/api/events` | admin-only, recent `source_events` for a repo (post editor "+ evento" picker) |
 | `/api/icons/search`, `/api/icons/[slug]` | admin-only, `src/infra/icons.ts` (`@iconify-json/simple-icons`) |
 | `/api/updates` (+ `[id]`), `/api/stack-*`, `/api/settings` | admin panels; settings GET also returns `hasGroqKey`/`hasGeminiKey`, never the secrets |
-| `/api/ingest/orgs`, `/api/ingest/orgs/[org]/repos`, `/api/ingest/org-repos` | org opt-in (`src/core/ingest/orgs.ts`, settings keys `ingest_orgs`/`ingest_org_repos`). Needs `GH_READ_TOKEN` in the web runtime (`src/infra/github/hub.ts`) — never the ingest's `GH_TOKEN` |
+| `/api/ingest/orgs`, `/api/ingest/orgs/[org]/repos`, `/api/ingest/org-repos` | org opt-in (`src/core/ingest/orgs.ts`, settings keys `ingest_orgs`/`ingest_org_repos`); turning on a public org repo creates its project right away (`src/core/ingest/seed.ts`). Settings modal = tabs Geral / Repos / Organizações. Needs `GH_READ_TOKEN` in the web runtime (`src/infra/github/hub.ts`) — never the ingest's `GH_TOKEN` |
 | `/api/admin/ingest-trigger` | dispatches `ingest.yml` (`GH_DISPATCH_TOKEN` + `GH_REPO`) |
 | `/api/wakatime` | `app.time.week()` (5 min in-memory cache) — widget lives on the home hero |
 | `/api/auth/login`, `/api/auth/logout` | admin session (`src/core/auth/service.ts` + HMAC in `src/infra/crypto.ts`) |
