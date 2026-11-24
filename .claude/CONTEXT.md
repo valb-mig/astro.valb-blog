@@ -262,6 +262,20 @@ Ingest (`scripts/ingest.ts` virou ~10 linhas; use case em `src/core/ingest/run.t
   A bolinha de busca flutuante (`z-[110]`, acima da moldura de admin) some
   enquanto um modal está aberto (`in-data-[scroll-locked]:hidden`) — antes
   cobria os switches no mobile.
+- **Imagens de projeto** (2026-11-24): galeria por projeto com upload de
+  verdade. Arquivos no bucket **público** `projects` do Supabase Storage
+  (`<projectId>/<uuid>.<ext>`), criado pelo próprio app no primeiro upload
+  (`infra/supabase/bucket.ts`, chave de serviço). No banco ficam só os
+  caminhos, em ordem (`projects.images jsonb`); a URL pública é montada no
+  infra. Primeira imagem = capa; sem imagem, capa = social preview do GitHub
+  (`opengraph.githubassets.com/1/<repo>`, `core/project/project.ts` `cover`),
+  e a `<img>` some no `onerror` (repo privado não tem preview). Upload vai uma
+  imagem por request (limite de 4,5 MB de body na Vercel), reduzida no
+  navegador pra webp ≤ 1920px (GIF passa intacto pra não perder animação);
+  o core ainda valida tipo e ≤ 4 MB. Se um upload do lote falha, os já
+  enviados daquele request são apagados do bucket. Migration (rodar no SQL
+  Editor, não há migrations versionadas):
+  `alter table projects add column if not exists images jsonb not null default '[]'::jsonb;`
 - **Home com "trabalhando em" + projetos fixados** (2026-11-24): `core/home.ts`
   junta tudo pra home numa chamada (`app.home.get(admin)`): repos com commit
   nos últimos 7 dias (uma query só em `source_events`, `events.since`, 90 dias

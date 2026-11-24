@@ -42,7 +42,7 @@ src/lib/     UI-only helpers: icons, toast, markdown, utils (shadcn)
 ### Data (Supabase, mapped in `src/infra/supabase/*`)
 
 - **posts** — `title`, `description`, `content` (markdown), `date`, `tags: string[]`, `draft`, `reading_time`
-- **projects** — `title`, `description`, `content` (GitHub README when synced), `date`, `tags`, `status: 'active'|'completed'|'archived'`, `repo` (`owner/name`, nullable — non-GitHub personal projects are supported), `languages` (jsonb, `{lang: percent}`, refreshed daily by ingest), `draft`, `parent_project_id`, `ingest_private`, `mention_allowed`, status fields (`ci_status`, `latest_release`, `uptime_url`, `last_status_code`, `status_token`, `deploy_status`… → `Project.health` in core)
+- **projects** — `title`, `description`, `content` (GitHub README when synced), `date`, `tags`, `status: 'active'|'completed'|'archived'`, `repo` (`owner/name`, nullable — non-GitHub personal projects are supported), `languages` (jsonb, `{lang: percent}`, refreshed daily by ingest), `draft`, `parent_project_id`, `ingest_private`, `mention_allowed`, `images` (jsonb array of Supabase Storage paths in the public `projects` bucket — first is the cover, `src/core/project/gallery.ts`), status fields (`ci_status`, `latest_release`, `uptime_url`, `last_status_code`, `status_token`, `deploy_status`… → `Project.health` in core)
 - **post_projects** — join `post_id ↔ project_id` (many-to-many)
 - **source_events** — event-sourcing table for GitHub activity: `type: 'commit'|'issue'|'pull_request'|'release'`, `external_id`, `repo`, `url`, `title`, `payload jsonb`, `occurred_at`. Unique `(source, type, external_id, repo)` for dedupe. **As of 2026-07-10, ingest only ever creates `type: 'commit'` rows** (read from local `git log`, not the GitHub Events API) — `issue`/`pull_request`/`release` rows still exist historically but are no longer produced.
 - **post_events** — join `post_id ↔ event_id`, written only by the ingest pipeline
@@ -89,7 +89,7 @@ Every run is recorded in `ingest_runs` (`src/infra/supabase/journal.ts`), shown 
 
 ### Post editor (`src/components/MarkdownEditor.astro`)
 
-CodeMirror-based split edit/preview, no upload backend. Toolbar has "+ evento" (only when the post has linked projects with a `repo` — lists that repo's events, inserts a blockquote+link) and "+ imagem" (URL only, no storage bucket).
+CodeMirror-based split edit/preview, no upload backend (project images do have one — `ImageManager.tsx` on the project edit form → `/api/projects/[id]/images`). Toolbar has "+ evento" (only when the post has linked projects with a `repo` — lists that repo's events, inserts a blockquote+link) and "+ imagem" (URL only, no storage bucket).
 
 ### Styling
 
