@@ -30,6 +30,7 @@ export type Summary = {
   languages: Languages | null;
   posts: number;
   images: Image[];
+  hero: string | null;
 };
 
 export type Project = Omit<Summary, 'posts'> & {
@@ -68,8 +69,8 @@ export type Repo = Pick<Project, 'id' | 'title' | 'repo' | 'mention' | 'private'
 
 export type Key = { id: string } | { slug: string };
 
-export const cover = (p: Pick<Summary, 'images' | 'repo'>) =>
-  p.images[0]?.url ?? (p.repo ? `https://opengraph.githubassets.com/1/${p.repo}` : null);
+export const cover = (p: Pick<Summary, 'images' | 'repo' | 'hero'>) =>
+  p.images[0]?.url ?? p.hero ?? (p.repo ? `https://opengraph.githubassets.com/1/${p.repo}` : null);
 
 export const org = (repo: string | null, user: string | null) => {
   const owner = repo?.split('/')[0];

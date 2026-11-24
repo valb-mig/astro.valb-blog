@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
+import { raw, resolve } from '@/core/project/readme';
 
 const tags = [...sanitizeHtml.defaults.allowedTags, 'img'];
 const attributes = {
@@ -11,18 +12,10 @@ const attributes = {
   div: ['class'],
 };
 
-const absolute = /^([a-z][a-z0-9+.-]*:|\/\/|#)/i;
-
-export const resolve = (url: string | undefined, base: string) => {
-  if (!url || absolute.test(url)) return url;
-  const { pathname, search, hash } = new URL(url, 'https://repo.local/');
-  return `${base}${pathname.slice(1)}${search}${hash}`;
-};
-
 const github = (repo: string): sanitizeHtml.IOptions['transformTags'] => ({
   img: (tag, attribs) => ({
     tagName: tag,
-    attribs: { ...attribs, src: resolve(attribs.src, `https://raw.githubusercontent.com/${repo}/HEAD/`) ?? '' },
+    attribs: { ...attribs, src: resolve(attribs.src, raw(repo)) ?? '' },
   }),
   a: (tag, attribs) => ({
     tagName: tag,

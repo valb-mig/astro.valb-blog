@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { render, resolve } from './markdown';
+import { resolve } from '@/core/project/readme';
+import { render } from './markdown';
 
 const raw = 'https://raw.githubusercontent.com/me/app/HEAD/';
 
