@@ -139,6 +139,12 @@ export class MemoryEvents implements Events {
     for (const e of this.items) if (repos.includes(e.repo) && (!out[e.repo] || e.at > out[e.repo])) out[e.repo] = e.at;
     return out;
   }
+  async since(from: string, linked: boolean, limit: number) {
+    return this.items
+      .filter((e) => e.at >= from && (!linked || this.linked.has(e.id)))
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, limit);
+  }
   async remove(target: string) {
     this.items = this.items.filter((e) => e.id !== target);
   }

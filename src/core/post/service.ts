@@ -44,6 +44,11 @@ export class Service {
     return { all: siblings, byProject };
   }
 
+  async latest(drafts: boolean): Promise<Post | null> {
+    const slugs = (await this.posts.slugs(activity.prefix, drafts)).sort();
+    return slugs.length ? this.posts.find({ slug: slugs[slugs.length - 1] }, drafts) : null;
+  }
+
   async days(drafts: boolean): Promise<Set<string>> {
     return new Set((await this.posts.slugs(activity.prefix, drafts)).map(activity.day));
   }

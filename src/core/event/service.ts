@@ -28,6 +28,10 @@ export class Service {
     return repos.length ? this.events.last(repos) : Promise.resolve({});
   }
 
+  since(from: string, admin: boolean, limit = 1000): Promise<Item[]> {
+    return this.events.since(from, !admin, limit);
+  }
+
   remove(id: string): Promise<void> {
     return this.events.remove(id);
   }
